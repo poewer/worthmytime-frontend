@@ -1,6 +1,6 @@
 "use client";
 
-import { CalculatorIcon, HistoryIcon, HourglassIcon, LayoutDashboardIcon, LogOutIcon, ScaleIcon, UserRoundIcon } from "lucide-react";
+import { CalculatorIcon, HistoryIcon, HourglassIcon, LayoutDashboardIcon, LogOutIcon, PiggyBankIcon, ScaleIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import ThemeToggle from "./ThemeToggle";
 const links = [
   { href: "/calculator", label: "Kalkulator", icon: CalculatorIcon },
   { href: "/compare", label: "Porównaj", icon: ScaleIcon },
+  { href: "/budget", label: "Budżet", icon: PiggyBankIcon },
   { href: "/history", label: "Historia", icon: HistoryIcon },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/profile", label: "Profil", icon: UserRoundIcon },
@@ -70,14 +71,14 @@ export default function Nav() {
         aria-label="Nawigacja mobilna"
         className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-6">
           {links.map(({ href, label, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}
                 aria-current={isActive(path, href) ? "page" : undefined}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium",
+                  "flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
                   isActive(path, href) ? "text-primary" : "text-muted-foreground",
                 )}
               >

@@ -37,7 +37,7 @@ export default function Page() {
 }
 
 function Calculator() {
-  const { ready, profile, profileForRequest, loggedIn } = useApp();
+  const { ready, profile, profileForRequest, budgetForRequest, loggedIn } = useApp();
   const router = useRouter();
   const editId = useSearchParams().get("edit");
 
@@ -67,7 +67,7 @@ function Calculator() {
   const rate =
     profile.effective_hourly_rate ??
     profile.hourly_rate ??
-    (profile.monthly_income ? profile.monthly_income / (profile.hours_per_day * profile.days_per_week * 4.2) : null);
+    (profile.monthly_income ? profile.monthly_income / ((profile.hours_per_day * profile.days_per_week * 52) / 12) : null);
 
   function showResult() {
     // na telefonie wynik jest pod formularzem - przewiń do niego
@@ -82,7 +82,7 @@ function Calculator() {
     setBusy(true);
     try {
       const res = await api<Result>("/calculate", {
-        body: { profile: profileForRequest, calculation: calcFromForm(values) },
+        body: { profile: profileForRequest, budget: budgetForRequest, calculation: calcFromForm(values) },
       });
       setResult(res);
       showResult();

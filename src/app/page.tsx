@@ -31,7 +31,7 @@ export default function Home() {
             Ile <span className="text-primary">życia</span> wymieniasz na ten zakup?
           </h1>
           <p className="max-w-prose text-lg text-pretty text-muted-foreground">
-            WorthMyTime zamienia cenę na godziny Twojej pracy. Bo 5 299 zł to liczba, a 127 godzin to już decyzja.
+            WorthMyTime zamienia cenę na godziny Twojej pracy. Bo 5 299 zł to liczba, a 131 godzin to już decyzja.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link href="/calculator" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
@@ -53,14 +53,14 @@ export default function Home() {
             <div>
               <p className="text-sm text-muted-foreground">kosztuje Cię</p>
               <p className="text-6xl leading-none font-bold tracking-tight text-primary tabular-nums">
-                127<span className="ml-1 text-2xl font-semibold">h</span>
+                131<span className="ml-1 text-2xl font-semibold">h</span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">pracy przy stawce 41,67 zł/h</p>
+              <p className="mt-1 text-sm text-muted-foreground">pracy przy stawce 40,38 zł/h</p>
             </div>
             <div className="grid grid-cols-3 gap-2">
               {[
-                ["15,9", "dni roboczych"],
-                ["3,2", "tyg. roboczych"],
+                ["16,4", "dni roboczych"],
+                ["3,3", "tyg. roboczych"],
                 ["147 zł", "miesięcznie / 3 lata"],
               ].map(([v, l]) => (
                 <div key={l} className="rounded-xl bg-muted/60 px-1 py-2.5">

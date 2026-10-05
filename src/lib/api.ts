@@ -2,6 +2,67 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001
 
 export type Frequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type CalcType = "SIMPLE" | "RECURRING" | "TCO";
+export type Category = "NEEDS" | "FUTURE" | "GOALS" | "FUN";
+
+/** Plan budżetu: procenty kategorii (suma 100) i wydatki w bieżącym miesiącu. */
+export interface BudgetPlan {
+  percentages: Record<Category, number>;
+  spent: Record<Category, number>;
+}
+
+export interface BudgetState extends BudgetPlan {
+  amounts: Record<Category, number> | null;
+  available: Record<Category, number> | null;
+  monthly_income: number | null;
+  total_spent: number;
+  is_custom: boolean;
+}
+
+export type WarningLevel = "critical" | "warning" | "info";
+
+export interface BudgetWarning {
+  code:
+    | "CATEGORY_BUDGET_EXCEEDED"
+    | "MONTHLY_COST_EXCEEDS_AVAILABLE"
+    | "CATEGORY_BUDGET_TIGHT"
+    | "BUDGET_DEFICIT"
+    | "HIGHER_PRIORITY_AT_RISK"
+    | "NO_BUDGET_DATA";
+  level: WarningLevel;
+  params: Record<string, number | string | null>;
+}
+
+export interface BudgetAnalysis {
+  category: Category;
+  priority: string;
+  percentage: number;
+  category_budget: number;
+  spent: number;
+  available: number;
+  usage_percent: number | null;
+  is_custom: boolean;
+  fits_budget: boolean;
+  upfront: {
+    cost: number;
+    projected_spent: number;
+    projected_usage_percent: number | null;
+    purchase_share_percent: number | null;
+    coverage_ratio: number | null;
+    months_to_goal: number | null;
+    months_to_goal_full: number | null;
+    monthly_contribution: number;
+    already_saved: number;
+    income_percent: number | null;
+  } | null;
+  monthly: {
+    cost: number;
+    projected_spent: number;
+    projected_usage_percent: number | null;
+    share_percent: number | null;
+    income_percent: number | null;
+  } | null;
+  warnings: BudgetWarning[];
+}
 
 export interface Profile {
   currency: string;
@@ -26,6 +87,9 @@ export interface CalculationIn {
   ownership_years: number | null;
   resale_value: number;
   costs: CostIn[];
+  category?: Category | null;
+  already_saved?: number;
+  monthly_contribution?: number | null;
 }
 
 export interface WorkTime {
@@ -51,6 +115,8 @@ export interface Result {
   life_cost: { years: number; per_day: number; per_week: number; per_month: number } | null;
   horizons?: { label: string; years: number; cost: number; work: WorkTime }[];
   summary?: { years: number; working_days: number };
+  /** Analiza planu budżetowego - tylko gdy wybrano kategorię. */
+  budget?: BudgetAnalysis | null;
 }
 
 export interface Comparison {

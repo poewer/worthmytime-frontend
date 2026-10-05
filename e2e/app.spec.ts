@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { json, PROFILE, RESULT, SAVED, withLocalProfile } from "./mocks";
+import { BUDGET_EXCEEDED, BUDGET_PLAN, json, PROFILE, RESULT, SAVED, withLocalBudget, withLocalProfile } from "./mocks";
 
 test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   await page.route("**/api/v1/calculate", (r) => json(r, RESULT));
 
   await page.goto("/calculator");
   await page.getByLabel("Miesięczny dochód netto").fill("7000");
-  await expect(page.getByText("41,67")).toBeVisible(); // podgląd efektywnej stawki
+  await expect(page.getByText("40,38")).toBeVisible(); // podgląd efektywnej stawki
   await page.getByRole("button", { name: /Dalej/ }).click();
 
   await page.getByLabel("Co chcesz kupić?").fill("iPhone 17 Pro");
@@ -14,7 +14,7 @@ test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   await page.getByLabel("Okres użytkowania (lata)").fill("3");
   await page.getByRole("button", { name: "Oblicz" }).click();
 
-  await expect(page.getByTestId("hours")).toContainText("127,2");
+  await expect(page.getByTestId("hours")).toContainText("131,2");
   // wypłata -> miesiąc -> lata, w tej kolejności
   await expect(page.getByTestId("income-share")).toContainText("75,7% Twojej miesięcznej wypłaty");
   await expect(page.getByTestId("months")).toContainText("0,76 miesiąca pracy");
@@ -169,4 +169,91 @@ test("nawigacja i brak poziomego przewijania", async ({ page, isMobile }) => {
     await expect(page.getByRole("navigation", { name: "Główna nawigacja" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Nawigacja mobilna" })).toBeHidden();
   }
+});
+
+test("kategoria budżetu: wysyła plan do API i ostrzega, że zakup może się nie mieścić", async ({ page }) => {
+  await withLocalProfile(page);
+  await withLocalBudget(page);
+  let sent: { budget?: typeof BUDGET_PLAN; calculation: { category: string; already_saved: number } } | undefined;
+  await page.route("**/api/v1/calculate", (r) => {
+    sent = r.request().postDataJSON();
+    return json(r, { ...RESULT, name: "PlayStation", total_cost: 2500, budget: BUDGET_EXCEEDED });
+  });
+
+  await page.goto("/calculator");
+  await page.getByLabel("Co chcesz kupić?").fill("PlayStation");
+  await page.getByLabel("Cena").fill("2500");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await page.getByLabel("Już odłożone").fill("500");
+  await page.getByRole("button", { name: "Oblicz" }).click();
+
+  const card = page.getByTestId("budget-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("warning-CATEGORY_BUDGET_EXCEEDED")).toContainText("To może nie mieścić się w Twoim planie budżetowym");
+  await expect(card.getByTestId("warning-CATEGORY_BUDGET_EXCEEDED")).toContainText("290%");
+  await expect(card.getByTestId("warning-HIGHER_PRIORITY_AT_RISK")).toBeVisible();
+  await expect(card.getByTestId("months-to-goal")).toContainText("2,5 mies.");
+  await expect(card).toContainText("Zakup to 250% miesięcznego budżetu „Przyjemności”");
+
+  // do API poszedł plan z przeglądarki (anonimowy użytkownik) oraz kategoria i cel
+  expect(sent?.budget?.percentages.FUN).toBe(10);
+  expect(sent?.budget?.spent.FUN).toBe(400);
+  expect(sent?.calculation.category).toBe("FUN");
+  expect(sent?.calculation.already_saved).toBe(500);
+});
+
+test("zakup mieszczący się w budżecie nie dostaje ostrzeżenia o przekroczeniu", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.route("**/api/v1/calculate", (r) =>
+    json(r, {
+      ...RESULT,
+      budget: {
+        ...BUDGET_EXCEEDED,
+        fits_budget: true,
+        warnings: [{ code: "NO_BUDGET_DATA", level: "info", params: {} }],
+        upfront: { ...BUDGET_EXCEEDED.upfront, cost: 100, projected_usage_percent: 50, purchase_share_percent: 10 },
+      },
+    }),
+  );
+  await page.goto("/calculator");
+  await page.getByLabel("Co chcesz kupić?").fill("Książka");
+  await page.getByLabel("Cena").fill("100");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await page.getByRole("button", { name: "Oblicz" }).click();
+  const card = page.getByTestId("budget-card");
+  await expect(card).toHaveAttribute("data-fits", "true");
+  await expect(card.getByTestId("warning-CATEGORY_BUDGET_EXCEEDED")).toHaveCount(0);
+  await expect(card.getByTestId("warning-NO_BUDGET_DATA")).toContainText("domyślnego budżetu");
+});
+
+test("strona budżetu: walidacja sumy 100% i zapis planu", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/budget");
+  await expect(page.getByTestId("pct-sum")).toHaveText("100%");
+
+  await page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)").fill("20");
+  await expect(page.getByTestId("pct-sum")).toHaveText("110%");
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Procenty muszą sumować się do 100")).toBeVisible();
+
+  await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("40");
+  await page.getByTestId("budget-FUN").getByLabel("Wydane w tym miesiącu").fill("400");
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+
+  const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
+  expect(saved.percentages).toEqual({ NEEDS: 40, FUTURE: 25, GOALS: 15, FUN: 20 });
+  expect(saved.spent.FUN).toBe(400);
+});
+
+test("historia: znacznik poza budżetem", async ({ page }) => {
+  await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
+  await page.route("**/api/v1/budget", (r) => json(r, { ...BUDGET_PLAN, is_custom: false, amounts: null, available: null, monthly_income: null, total_spent: 0 }));
+  await page.route("**/api/v1/calculations", (r) =>
+    json(r, { items: [{ ...SAVED, result: { ...RESULT, budget: BUDGET_EXCEEDED } }] }),
+  );
+  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await page.goto("/history");
+  await expect(page.getByTestId("history-over-budget")).toHaveText("poza budżetem");
+  await expect(page.getByTestId("history-category")).toHaveText("Przyjemności");
 });

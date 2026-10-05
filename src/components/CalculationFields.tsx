@@ -7,8 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FREQ_LABEL } from "@/lib/format";
-import { emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut } from "@/lib/forms";
+import { CATEGORY_INFO, FREQ_LABEL } from "@/lib/format";
+import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut } from "@/lib/forms";
 import type { CalcType } from "@/lib/api";
 import { Field } from "./FormField";
 
@@ -33,17 +33,20 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
     register,
     control,
     watch,
+    setValue,
     reset,
     getValues,
     formState: { errors },
   } = form;
   const { fields, append, remove } = useFieldArray({ control, name: "costs" });
   const type = watch("type");
+  const category = watch("category");
   const costsError = errors.costs?.root?.message ?? (errors.costs as { message?: string } | undefined)?.message;
 
   function changeType(next: CalcType) {
     if (next === type) return;
-    reset(emptyCalcForm(next, getValues("name")));
+    // zmiana typu czyści pola kosztów, ale zostawia nazwę i wybraną kategorię budżetu
+    reset({ ...emptyCalcForm(next, getValues("name")), category: getValues("category") });
   }
 
   return (
@@ -88,6 +91,49 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
               )}
             </Field>
           )}
+        </div>
+      )}
+
+      <fieldset className="grid gap-2">
+        <legend className="mb-1 text-sm font-medium">Kategoria budżetu (opcjonalnie)</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Kategoria budżetu">
+          {([""].concat(BUDGET_CATEGORIES) as ("" | (typeof BUDGET_CATEGORIES)[number])[]).map((c) => {
+            const active = category === c;
+            return (
+              <button
+                key={c || "none"}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setValue("category", c, { shouldDirty: true })}
+                className={`min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                  active ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {c ? CATEGORY_INFO[c].label : "Bez kategorii"}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {category
+            ? `${CATEGORY_INFO[category].label}: ${CATEGORY_INFO[category].hint}. Sprawdzimy, czy zakup mieści się w Twoim planie budżetowym.`
+            : "Wybierz kategorię, a sprawdzimy, czy zakup mieści się w Twoim planie budżetowym."}
+        </p>
+      </fieldset>
+
+      {category && type !== "RECURRING" && (
+        <div className="grid items-start gap-4 sm:grid-cols-2">
+          <Field label="Już odłożone" hint="Na ten zakup" error={errors.already_saved?.message}>
+            {(p) => <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register("already_saved")} />}
+          </Field>
+          <Field
+            label="Miesięczna wpłata"
+            hint="Domyślnie cały budżet kategorii"
+            error={errors.monthly_contribution?.message}
+          >
+            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 1000" className="h-11" {...register("monthly_contribution")} />}
+          </Field>
         </div>
       )}
 

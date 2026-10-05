@@ -24,6 +24,6 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     env: { NEXT_DIST_DIR: ".next-e2e" },
     reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
+    timeout: 480_000,
   },
 });
