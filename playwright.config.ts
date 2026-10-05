@@ -22,6 +22,7 @@ export default defineConfig({
     // build produkcyjny: bez kompilacji "na żądanie", testy nie ścigają się z hydratacją
     command:`npm run build && npm run start -- -p ${PORT}`,
     url: `http://localhost:${PORT}`,
+    env: { NEXT_DIST_DIR: ".next-e2e" },
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
   },

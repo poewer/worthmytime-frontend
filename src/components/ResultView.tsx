@@ -13,6 +13,8 @@ const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--cha
 
 export default function ResultView({ result, currency = "PLN" }: { result: Result; currency?: string }) {
   const w = result.work;
+  // koszt cykliczny: nagłówek to jeden miesiąc, a dalsze horyzonty pokazują narastanie
+  const recurring = result.type === "RECURRING";
 
   return (
     <div className="grid gap-4">
@@ -20,10 +22,13 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
         <CardContent className="grid gap-5 text-center">
           <div>
             <p className="text-sm text-muted-foreground">{result.name}</p>
-            <p className="text-lg font-semibold tabular-nums">{money(result.total_cost, currency)}</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {money(result.total_cost, currency)}
+              {recurring && <span className="text-sm font-normal text-muted-foreground"> / miesiąc</span>}
+            </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">kosztuje Cię</p>
+            <p className="text-sm text-muted-foreground">{recurring ? "kosztuje Cię miesięcznie" : "kosztuje Cię"}</p>
             <p className="text-6xl leading-none font-bold tracking-tight text-primary tabular-nums sm:text-7xl" data-testid="hours">
               {num(w.hours, 1)}
               <span className="ml-1 text-2xl font-semibold sm:text-3xl">h</span>
@@ -31,7 +36,7 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
             <p className="mt-1 text-sm text-muted-foreground">pracy ({hm(w.hours_part, w.minutes_part)})</p>
           </div>
 
-          {w.income_percent != null && <IncomeShare percent={w.income_percent} />}
+          {w.income_percent != null && <IncomeShare percent={w.income_percent} recurring={recurring} />}
 
           {w.working_months != null && (
           <section aria-labelledby="scale-month" className="grid gap-3 text-left">
@@ -52,6 +57,7 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
           </section>
           )}
 
+          {!recurring && (
           <section aria-labelledby="scale-year" className="grid gap-2 text-left">
             <h3 id="scale-year" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
               W skali lat
@@ -64,19 +70,20 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
             </p>
             <ProgressBar value={w.working_years * 100} label="Udział w roku pracy" />
           </section>
+          )}
 
           {result.hourly_rate != null && (
             <p className="text-xs text-muted-foreground">Efektywna stawka: {money(result.hourly_rate, currency)}/h</p>
           )}
         </CardContent>
       </Card>
+      {result.horizons && <HorizonsCard result={result} currency={currency} />}
+
       {result.summary && (
         <p className="text-center text-sm">
           {result.summary.years} lat tego wydatku to około <b>{num(result.summary.working_days, 1)}</b> dni roboczych.
         </p>
       )}
-
-      {result.horizons && <HorizonsCard result={result} currency={currency} />}
 
       {result.type !== "RECURRING" && result.breakdown.length > 1 && <BreakdownCard result={result} currency={currency} />}
 
@@ -130,8 +137,8 @@ function HorizonsCard({ result, currency }: { result: Result; currency: string }
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Koszt w czasie</CardTitle>
-        <CardDescription>Ile godzin pracy pochłonie ten wydatek</CardDescription>
+        <CardTitle>Jak to narasta w czasie</CardTitle>
+        <CardDescription>Od jednego miesiąca po lata: ile pracy i miesięcznych wypłat pochłonie ta opłata</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <ChartContainer config={config} className="h-48 w-full">
@@ -150,7 +157,7 @@ function HorizonsCard({ result, currency }: { result: Result; currency: string }
               <span className="text-right tabular-nums">{money(h.cost, currency)}</span>
               <span className="min-w-20 text-right tabular-nums">
                 <span className="font-medium">{h.time}</span>
-                {h.percent != null && <span className="block text-xs text-muted-foreground">{num(h.percent, 1)}% wypłaty</span>}
+                {h.percent != null && <span className="block text-xs text-muted-foreground">{shareLabel(h.percent)}</span>}
               </span>
             </li>
           ))}
@@ -210,7 +217,12 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 /** Procent miesięcznej wypłaty - uświadamia skalę wydatku. */
-function IncomeShare({ percent }: { percent: number }) {
+/** Procent poniżej 100, a od 100 wielokrotność wypłaty (27× czytelniejsze niż 2 700%). */
+function shareLabel(percent: number) {
+  return percent >= 100 ? `${num(percent / 100, 1)}× wypłaty` : `${num(percent, percent < 10 ? 1 : 0)}% wypłaty`;
+}
+
+function IncomeShare({ percent, recurring = false }: { percent: number; recurring?: boolean }) {
   if (percent <= 0) return null;
   const tone =
     percent >= 100
@@ -230,7 +242,11 @@ function IncomeShare({ percent }: { percent: number }) {
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        {percent >= 100 ? "Tyle miesięcy pracy oddajesz za ten wydatek." : "Tyle z miesięcznej pracy pochłania ten wydatek."}
+        {recurring
+          ? "Tyle z miesięcznej pracy pochłania ta opłata - co miesiąc."
+          : percent >= 100
+            ? "Tyle miesięcy pracy oddajesz za ten wydatek."
+            : "Tyle z miesięcznej pracy pochłania ten wydatek."}
       </p>
     </div>
   );
