@@ -6,8 +6,8 @@ export const PROFILE = {
   hourly_rate: null,
   hours_per_day: 8,
   days_per_week: 5,
-  effective_hourly_rate: 41.67,
-  hours_per_month: 168,
+  effective_hourly_rate: 40.38,
+  hours_per_month: 173.33,
 };
 
 export const RESULT = {
@@ -15,8 +15,8 @@ export const RESULT = {
   type: "SIMPLE",
   total_cost: 5299,
   breakdown: [{ name: "Purchase", amount: 5299 }],
-  hourly_rate: 41.67,
-  work: { hours: 127.2, hours_part: 127, minutes_part: 11, working_days: 15.9, working_weeks: 3.18, working_months: 0.76, working_years: 0.06, income_percent: 75.7 },
+  hourly_rate: 40.38,
+  work: { hours: 131.2, hours_part: 131, minutes_part: 13, working_days: 16.4, working_weeks: 3.28, working_months: 0.76, working_years: 0.06, income_percent: 75.7 },
   life_cost: { years: 3, per_day: 4.84, per_week: 33.87, per_month: 147.19 },
 };
 
@@ -38,4 +38,47 @@ export const SAVED = {
 /** Profil anonimowy w localStorage - pomija onboarding. */
 export async function withLocalProfile(page: Page) {
   await page.addInitScript((p) => window.localStorage.setItem("wmt_profile", JSON.stringify(p)), PROFILE);
+}
+
+/** Analiza budżetowa jak z API: PlayStation 2 500 zł z kategorii FUN (budżet 1 000 zł) przy dochodzie 10 000 zł. */
+export const BUDGET_EXCEEDED = {
+  category: "FUN",
+  priority: "P4",
+  percentage: 10,
+  category_budget: 1000,
+  spent: 400,
+  available: 600,
+  usage_percent: 40,
+  is_custom: true,
+  fits_budget: false,
+  upfront: {
+    cost: 2500,
+    projected_spent: 2900,
+    projected_usage_percent: 290,
+    purchase_share_percent: 250,
+    coverage_ratio: 416.7,
+    months_to_goal: 2.5,
+    months_to_goal_full: 3,
+    monthly_contribution: 1000,
+    already_saved: 0,
+    income_percent: 25,
+  },
+  monthly: null,
+  warnings: [
+    {
+      code: "CATEGORY_BUDGET_EXCEEDED",
+      level: "warning",
+      params: { category: "FUN", overrun: 1900, projected_usage_percent: 290, available: 600 },
+    },
+    { code: "HIGHER_PRIORITY_AT_RISK", level: "warning", params: { category: "FUN", priority: "P4", shortfall: 1900 } },
+  ],
+};
+
+export const BUDGET_PLAN = {
+  percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+  spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 400 },
+};
+
+export async function withLocalBudget(page: Page) {
+  await page.addInitScript((b) => window.localStorage.setItem("wmt_budget", JSON.stringify(b)), BUDGET_PLAN);
 }

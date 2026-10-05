@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, type CalcType, type SavedCalculation } from "@/lib/api";
-import { hm, money, num } from "@/lib/format";
+import { CATEGORY_INFO, hm, money, num } from "@/lib/format";
 import { errorMessage } from "@/lib/forms";
 import { cn } from "@/lib/utils";
 
@@ -159,6 +159,16 @@ export default function HistoryPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{c.name}</span>
                       <Badge variant="secondary">{TYPE_LABEL[c.type]}</Badge>
+                      {c.result.budget && (
+                        <Badge variant="outline" data-testid="history-category">
+                          {CATEGORY_INFO[c.result.budget.category].label}
+                        </Badge>
+                      )}
+                      {c.result.budget && !c.result.budget.fits_budget && (
+                        <Badge variant="destructive" data-testid="history-over-budget">
+                          poza budżetem
+                        </Badge>
+                      )}
                       {c.public_id && (
                         <Badge variant="outline" className="gap-1">
                           <Link2Icon className="size-3" /> publiczne

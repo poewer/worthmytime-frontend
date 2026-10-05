@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import BudgetCard from "./BudgetCard";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import type { Result } from "@/lib/api";
 import { FREQ_LABEL, HORIZON_LABEL, hm, money, monthsLabel, num, yearsLabel } from "@/lib/format";
@@ -80,6 +81,8 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
           )}
         </CardContent>
       </Card>
+      {result.budget && <BudgetCard budget={result.budget} currency={currency} />}
+
       {result.horizons && <HorizonsCard result={result} currency={currency} />}
 
       {result.summary && (

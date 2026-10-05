@@ -1,6 +1,6 @@
 import type { FieldPath, FieldValues, UseFormSetError } from "react-hook-form";
 import { z } from "zod";
-import { ApiError, type CalcType, type CalculationIn, type Frequency, type Profile } from "./api";
+import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type Profile } from "./api";
 
 /** Pole liczbowe z inputu tekstowego: "" -> null, przecinek dziesiętny dozwolony. */
 const optionalNumber = z
@@ -50,6 +50,8 @@ export const profileFromForm = (v: ProfileFormOut): Profile => ({
   days_per_week: v.days_per_week,
 });
 
+export const BUDGET_CATEGORIES = ["NEEDS", "FUTURE", "GOALS", "FUN"] as const satisfies readonly Category[];
+
 export const calculationSchema = z
   .object({
     name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -57,6 +59,9 @@ export const calculationSchema = z
     purchase_price: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
     ownership_years: optionalNumber.refine((n) => n === null || (n > 0 && n <= 100), "Od 0,1 do 100 lat"),
     resale_value: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+    category: z.enum(["", ...BUDGET_CATEGORIES]),
+    already_saved: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+    monthly_contribution: optionalNumber.refine((n) => n === null || n > 0, "Musi być większa od zera"),
     costs: z.array(
       z.object({
         name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -86,6 +91,9 @@ export const emptyCalcForm = (type: CalcType = "SIMPLE", name = ""): CalcFormIn 
   purchase_price: "",
   ownership_years: type === "TCO" ? "5" : "",
   resale_value: "",
+  category: "",
+  already_saved: "",
+  monthly_contribution: "",
   costs: type === "RECURRING" ? [{ name: "Subskrypcja", amount: "", frequency: "MONTHLY" }] : [],
 });
 
@@ -95,6 +103,9 @@ export const calcToForm = (c: CalculationIn): CalcFormIn => ({
   purchase_price: c.purchase_price ? String(c.purchase_price) : "",
   ownership_years: c.ownership_years != null ? String(c.ownership_years) : "",
   resale_value: c.resale_value ? String(c.resale_value) : "",
+  category: c.category ?? "",
+  already_saved: c.already_saved ? String(c.already_saved) : "",
+  monthly_contribution: c.monthly_contribution ? String(c.monthly_contribution) : "",
   costs: c.costs.map((x) => ({ name: x.name, amount: String(x.amount), frequency: x.frequency })),
 });
 
@@ -105,6 +116,57 @@ export const calcFromForm = (v: CalcFormOut): CalculationIn => ({
   ownership_years: v.type === "RECURRING" ? null : v.ownership_years,
   resale_value: v.type === "TCO" ? (v.resale_value ?? 0) : 0,
   costs: v.type === "SIMPLE" ? [] : v.costs,
+  category: v.category || null,
+  already_saved: v.category && v.type !== "RECURRING" ? (v.already_saved ?? 0) : 0,
+  monthly_contribution: v.category && v.type !== "RECURRING" ? v.monthly_contribution : null,
+});
+
+// --- budżet ---------------------------------------------------------------------------------
+
+export const budgetSchema = z
+  .object({
+    pct_NEEDS: requiredNumber("Potrzeby").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
+    pct_FUTURE: requiredNumber("Przyszłość").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
+    pct_GOALS: requiredNumber("Cele").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
+    pct_FUN: requiredNumber("Przyjemności").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
+    spent_NEEDS: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
+    spent_FUTURE: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
+    spent_GOALS: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
+    spent_FUN: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
+  })
+  .superRefine((v, ctx) => {
+    const sum = v.pct_NEEDS + v.pct_FUTURE + v.pct_GOALS + v.pct_FUN;
+    if (Math.abs(sum - 100) > 0.01) {
+      ctx.addIssue({ code: "custom", path: ["pct_NEEDS"], message: `Procenty muszą sumować się do 100 (teraz ${Math.round(sum * 100) / 100})` });
+    }
+  });
+
+export type BudgetFormIn = z.input<typeof budgetSchema>;
+export type BudgetFormOut = z.output<typeof budgetSchema>;
+
+export const DEFAULT_BUDGET: BudgetPlan = {
+  percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+  spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+};
+
+export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
+  const p = b ?? DEFAULT_BUDGET;
+  const s = (c: Category) => (p.spent[c] ? String(p.spent[c]) : "");
+  return {
+    pct_NEEDS: String(p.percentages.NEEDS),
+    pct_FUTURE: String(p.percentages.FUTURE),
+    pct_GOALS: String(p.percentages.GOALS),
+    pct_FUN: String(p.percentages.FUN),
+    spent_NEEDS: s("NEEDS"),
+    spent_FUTURE: s("FUTURE"),
+    spent_GOALS: s("GOALS"),
+    spent_FUN: s("FUN"),
+  };
+};
+
+export const budgetFromForm = (v: BudgetFormOut): BudgetPlan => ({
+  percentages: { NEEDS: v.pct_NEEDS, FUTURE: v.pct_FUTURE, GOALS: v.pct_GOALS, FUN: v.pct_FUN },
+  spent: { NEEDS: v.spent_NEEDS ?? 0, FUTURE: v.spent_FUTURE ?? 0, GOALS: v.spent_GOALS ?? 0, FUN: v.spent_FUN ?? 0 },
 });
 
 /**
@@ -115,7 +177,7 @@ export function applyServerErrors<T extends FieldValues>(err: unknown, setError:
   if (!(err instanceof ApiError) || err.status !== 422 || err.errors.length === 0) return false;
   let all = true;
   for (const e of err.errors) {
-    const path = e.field.replace(/^(calculation|profile|a|b)\./, "");
+    const path = e.field.replace(/^(calculation|profile|budget|a|b)\./, "");
     if (path) setError(path as FieldPath<T>, { type: "server", message: e.message });
     else all = false;
   }
