@@ -1,31 +1,43 @@
-"use client";
-
+import { ArrowRightIcon } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { notFound } from "next/navigation";
 import ResultView from "@/components/ResultView";
-import { ErrorBox } from "@/components/ui";
-import { api, type Result } from "@/lib/api";
+import { buttonVariants } from "@/components/ui/button";
+import type { Result } from "@/lib/api";
+import { money, num } from "@/lib/format";
+import { serverApi } from "@/lib/server-api";
+import { cn } from "@/lib/utils";
 
-export default function SharedPage() {
-  const { publicId } = useParams<{ publicId: string }>();
-  const [data, setData] = useState<{ currency: string; result: Result } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+type Shared = { name: string; currency: string; result: Result };
 
-  useEffect(() => {
-    api<{ currency: string; result: Result }>(`/shared/${publicId}`)
-      .then(setData)
-      .catch((e) => setError(e.message));
-  }, [publicId]);
+const load = (publicId: string) => serverApi<Shared>(`/shared/${encodeURIComponent(publicId)}`);
+
+export async function generateMetadata({ params }: PageProps<"/s/[publicId]">): Promise<Metadata> {
+  const { publicId } = await params;
+  const data = await load(publicId);
+  if (!data) return { title: "Nie znaleziono wyniku", robots: { index: false } };
+  const { result } = data;
+  const title = `${result.name}: ${num(result.work.hours, 1)} h pracy`;
+  const description = `${money(result.total_cost, data.currency)} to około ${num(result.work.working_days, 1)} dni roboczych. Sprawdź, ile Ciebie kosztuje ten zakup.`;
+  return { title, description, openGraph: { title, description, type: "website" }, twitter: { card: "summary_large_image", title, description } };
+}
+
+export default async function SharedPage({ params }: PageProps<"/s/[publicId]">) {
+  const { publicId } = await params;
+  const data = await load(publicId);
+  if (!data) notFound();
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <ErrorBox message={error} />
-      {data ? <ResultView result={data.result} currency={data.currency} /> : !error && <p className="text-sm text-zinc-500">Ładowanie…</p>}
-      <p className="text-center text-sm">
-        Sprawdź, ile Ty zapłacisz swoim czasem:{" "}
-        <Link href="/" className="font-medium text-emerald-700 underline dark:text-emerald-400">WorthMyTime</Link>
-      </p>
+    <div className="mx-auto grid max-w-lg gap-5">
+      <p className="text-center text-sm text-muted-foreground">Ktoś udostępnił Ci wynik z WorthMyTime</p>
+      <ResultView result={data.result} currency={data.currency} />
+      <div className="grid justify-items-center gap-2 text-center">
+        <p className="text-sm text-muted-foreground">Sprawdź, ile Ciebie kosztuje Twój następny zakup.</p>
+        <Link href="/calculator" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
+          Policz własny zakup <ArrowRightIcon />
+        </Link>
+      </div>
     </div>
   );
 }

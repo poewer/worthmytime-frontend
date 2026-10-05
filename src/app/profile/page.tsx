@@ -1,64 +1,108 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { LogOutIcon } from "lucide-react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
+import { Field } from "@/components/FormField";
 import ProfileForm from "@/components/ProfileForm";
-import { Button, Card, ErrorBox, Field, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { applyServerErrors, errorMessage } from "@/lib/forms";
+
+const authSchema = z.object({
+  email: z.string().trim().email("Podaj poprawny adres e-mail"),
+  password: z.string().min(8, "Hasło musi mieć co najmniej 8 znaków").max(128),
+});
+type AuthForm = z.infer<typeof authSchema>;
 
 export default function ProfilePage() {
-  const { ready, loggedIn, email, login } = useApp();
-  const [mail, setMail] = useState("");
-  const [pass, setPass] = useState("");
+  const { ready, loggedIn, email, logout } = useApp();
+  if (!ready) return <Skeleton className="mx-auto h-96 max-w-lg" />;
+
+  return (
+    <div className="mx-auto grid max-w-lg gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Profil finansowy</CardTitle>
+          <CardDescription>Na jego podstawie przeliczamy ceny na godziny pracy.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProfileForm key={String(loggedIn)} />
+        </CardContent>
+      </Card>
+
+      {loggedIn ? (
+        <Card size="sm">
+          <CardContent className="flex items-center justify-between gap-3">
+            <div className="min-w-0 text-sm">
+              <p className="text-muted-foreground">Zalogowano jako</p>
+              <p className="truncate font-medium">{email}</p>
+            </div>
+            <Button variant="outline" className="h-11" onClick={logout}>
+              <LogOutIcon /> Wyloguj
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <AuthCard />
+      )}
+    </div>
+  );
+}
+
+function AuthCard() {
+  const { login } = useApp();
   const [register, setRegister] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const form = useForm<AuthForm>({ resolver: zodResolver(authSchema), defaultValues: { email: "", password: "" } });
+  const {
+    formState: { errors, isSubmitting },
+  } = form;
 
-  if (!ready) return <p className="text-sm text-zinc-500">Ładowanie…</p>;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
+  async function submit(v: AuthForm) {
     try {
-      await login(mail, pass, register);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd logowania");
-    } finally {
-      setBusy(false);
+      await login(v.email, v.password, register);
+      toast.success(register ? "Konto utworzone" : "Zalogowano");
+    } catch (e) {
+      if (!applyServerErrors(e, form.setError)) toast.error(errorMessage(e, "Nie udało się zalogować"));
     }
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <Card className="space-y-3">
-        <h1 className="text-xl font-bold">Profil finansowy</h1>
-        <ProfileForm key={String(loggedIn)} onSaved={() => setSaved(true)} />
-        {saved && <p className="text-sm text-emerald-700 dark:text-emerald-400">Zapisano.</p>}
-      </Card>
-
-      {!loggedIn && (
-        <Card>
-          <h2 className="mb-1 text-lg font-bold">{register ? "Załóż konto" : "Zaloguj się"}</h2>
-          <p className="mb-3 text-sm text-zinc-500">Konto jest potrzebne tylko do zapisywania historii i udostępniania wyników.</p>
-          <form onSubmit={submit} className="space-y-3">
-            <Field label="E-mail">
-              <Input type="email" required value={mail} onChange={(e) => setMail(e.target.value)} />
-            </Field>
-            <Field label="Hasło" hint={register ? "Minimum 8 znaków" : undefined}>
-              <Input type="password" required minLength={8} value={pass} onChange={(e) => setPass(e.target.value)} />
-            </Field>
-            <ErrorBox message={error} />
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={busy}>{register ? "Zarejestruj" : "Zaloguj"}</Button>
-              <button type="button" className="text-sm underline" onClick={() => setRegister(!register)}>
-                {register ? "Mam już konto" : "Nie mam konta"}
-              </button>
-            </div>
-          </form>
-        </Card>
-      )}
-      {loggedIn && <p className="text-center text-sm text-zinc-500">Zalogowano jako {email}</p>}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{register ? "Załóż konto" : "Zaloguj się"}</CardTitle>
+        <CardDescription>Konto jest potrzebne tylko do zapisywania historii i udostępniania wyników.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={form.handleSubmit(submit)} noValidate className="grid gap-4">
+          <Field label="E-mail" error={errors.email?.message}>
+            {(p) => <Input {...p} type="email" autoComplete="email" className="h-11" {...form.register("email")} />}
+          </Field>
+          <Field label="Hasło" hint={register ? "Minimum 8 znaków" : undefined} error={errors.password?.message}>
+            {(p) => (
+              <Input
+                {...p}
+                type="password"
+                autoComplete={register ? "new-password" : "current-password"}
+                className="h-11"
+                {...form.register("password")}
+              />
+            )}
+          </Field>
+          <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
+            {register ? "Zarejestruj" : "Zaloguj"}
+          </Button>
+          <Button type="button" variant="link" onClick={() => setRegister(!register)}>
+            {register ? "Mam już konto" : "Nie mam konta - zarejestruj się"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

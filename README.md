@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WorthMyTime - frontend
 
-## Getting Started
+Next.js (App Router) + TypeScript + Tailwind v4 + shadcn/ui (Base UI) + Recharts + react-hook-form/zod.
 
-First, run the development server:
+## Uruchomienie
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```powershell
+copy .env.example .env.local     # NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
+npm install
+npm run dev                      # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Backend: patrz `../worthmytime-backend/README.md` (domyślnie port 8001).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Zmienne środowiskowe
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Zmienna | Opis |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | adres API dla przeglądarki, wkompilowywany w czasie budowania (w Dockerze `build-arg`) |
+| `API_URL` | opcjonalnie: adres API dla zapytań z serwera Next.js (strona `/s/...`), np. `http://api:8000/api/v1` w sieci docker |
 
-## Learn More
+## Struktura
 
-To learn more about Next.js, take a look at the following resources:
+- `/` landing, `/calculator` kalkulator i wynik, `/compare` porównanie, `/history`, `/dashboard`, `/profile` (profil + konto)
+- `/s/[publicId]` publiczny wynik renderowany po stronie serwera (metadane OG + `opengraph-image`)
+- `src/components/ui` komponenty shadcn/ui, `src/lib/forms.ts` schematy zod i mapowanie błędów 422 z API na pola
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Testy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```powershell
+npm run lint
+npm run test:e2e                 # Playwright, desktop + mobile (Pixel 7), API zamockowane
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Testy e2e budują wersję produkcyjną i startują ją na porcie 3100 (`E2E_PORT`). Pierwszy raz: `npx playwright install chromium`.
