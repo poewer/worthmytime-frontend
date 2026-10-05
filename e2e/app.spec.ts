@@ -61,6 +61,8 @@ test("koszt cykliczny: wykres i tabela horyzontów", async ({ page }) => {
       ...RESULT,
       name: "Netflix",
       type: "RECURRING",
+      total_cost: 49,
+      work: { ...RESULT.work, hours: 1.18, hours_part: 1, minutes_part: 11, working_months: 0.01, income_percent: 0.7 },
       life_cost: null,
       breakdown: [{ name: "Netflix", amount: 49, frequency: "MONTHLY" }],
       horizons: [horizon("1 month", 0.0833, 49, 1.18), horizon("1 year", 1, 588, 14.1), horizon("10 years", 10, 5880, 141.1)],
@@ -73,7 +75,11 @@ test("koszt cykliczny: wykres i tabela horyzontów", async ({ page }) => {
   await page.getByLabel("Kwota").fill("49");
   await page.getByLabel("Nazwa").fill("Netflix");
   await page.getByRole("button", { name: "Oblicz" }).click();
-  await expect(page.getByText("Koszt w czasie")).toBeVisible();
+  // nagłówek = jeden miesiąc, dopiero niżej narastanie w latach
+  await expect(page.getByText("kosztuje Cię miesięcznie")).toBeVisible();
+  await expect(page.getByTestId("income-share")).toContainText("0,7% Twojej miesięcznej wypłaty");
+  await expect(page.getByText("Jak to narasta w czasie")).toBeVisible();
+  await expect(page.getByText("W skali lat")).toBeHidden();
   await expect(page.getByText("10 lat tego wydatku to około")).toBeVisible();
 });
 

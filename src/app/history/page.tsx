@@ -166,7 +166,7 @@ export default function HistoryPage() {
                       )}
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
-                      {money(c.result.total_cost, c.currency)} ·{" "}
+                      {money(c.result.total_cost, c.currency)}{c.type === "RECURRING" && " / mies."} ·{" "}
                       <span className="font-medium text-foreground">{num(c.result.work.hours, 1)} h</span>
                       <span className="hidden sm:inline"> ({hm(c.result.work.hours_part, c.result.work.minutes_part)})</span> ·{" "}
                       {new Date(c.created_at).toLocaleDateString("pl-PL")}
