@@ -5,14 +5,6 @@ import { api, getToken, setToken, type Profile } from "@/lib/api";
 
 const LOCAL_PROFILE_KEY = "wmt_profile";
 
-export const DEFAULT_PROFILE: Profile = {
-  currency: "PLN",
-  monthly_income: null,
-  hourly_rate: null,
-  hours_per_day: 8,
-  days_per_week: 5,
-};
-
 interface Ctx {
   ready: boolean;
   email: string | null;
@@ -35,6 +27,15 @@ export const useApp = () => {
 
 const hasRate = (p: Profile | null) => !!p && (p.monthly_income != null || p.hourly_rate != null);
 
+function readLocalProfile(): Profile | null {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -52,10 +53,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
           setToken(null);
         }
       }
-      try {
-        const raw = window.localStorage.getItem(LOCAL_PROFILE_KEY);
-        if (raw) setProfile(JSON.parse(raw));
-      } catch {}
+      setProfile(readLocalProfile());
     })().finally(() => setReady(true));
   }, []);
 
@@ -77,13 +75,15 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     });
     setToken(res.token);
     setEmail(mail.toLowerCase());
-    // nowe konto: przenieś profil anonimowy na serwer
+    // konto bez profilu: przenieś profil anonimowy na serwer
     let next: Profile | null = hasRate(res.profile) ? res.profile : null;
     if (!next) {
-      try {
-        const raw = window.localStorage.getItem(LOCAL_PROFILE_KEY);
-        if (raw) next = await api<Profile>("/profile", { method: "PUT", body: JSON.parse(raw) });
-      } catch {}
+      const local = readLocalProfile();
+      if (local) {
+        try {
+          next = await api<Profile>("/profile", { method: "PUT", body: local });
+        } catch {}
+      }
     }
     setProfile(next);
   }, []);
@@ -91,12 +91,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const logout = useCallback(() => {
     setToken(null);
     setEmail(null);
-    try {
-      const raw = window.localStorage.getItem(LOCAL_PROFILE_KEY);
-      setProfile(raw ? JSON.parse(raw) : null);
-    } catch {
-      setProfile(null);
-    }
+    setProfile(readLocalProfile());
   }, []);
 
   const value = useMemo<Ctx>(

@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
 
 export type Frequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type CalcType = "SIMPLE" | "RECURRING" | "TCO";
@@ -80,8 +80,17 @@ export interface Dashboard {
   recent: SavedCalculation[];
 }
 
+export interface FieldError {
+  field: string;
+  message: string;
+}
+
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+    public errors: FieldError[] = [],
+  ) {
     super(message);
   }
 }
@@ -107,6 +116,6 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.error ?? `Błąd ${res.status}`, res.status);
+  if (!res.ok) throw new ApiError(data.error ?? `Błąd ${res.status}`, res.status, data.errors ?? []);
   return data as T;
 }
