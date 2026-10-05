@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from "recha
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import type { Result } from "@/lib/api";
-import { FREQ_LABEL, HORIZON_LABEL, hm, money, num, yearsLabel } from "@/lib/format";
+import { FREQ_LABEL, HORIZON_LABEL, hm, money, monthsLabel, num, yearsLabel } from "@/lib/format";
 
 const LINE_LABEL: Record<string, string> = { Purchase: "Zakup", Resale: "Odsprzedaż" };
 const lineName = (n: string) => LINE_LABEL[n] ?? n;
@@ -13,7 +13,6 @@ const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--cha
 
 export default function ResultView({ result, currency = "PLN" }: { result: Result; currency?: string }) {
   const w = result.work;
-  const yearShare = Math.max(0, Math.min(100, w.working_years * 100));
 
   return (
     <div className="grid gap-4">
@@ -31,33 +30,46 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
             </p>
             <p className="mt-1 text-sm text-muted-foreground">pracy ({hm(w.hours_part, w.minutes_part)})</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Stat value={num(w.working_days, 1)} label="dni roboczych" />
-            <Stat value={num(w.working_weeks, 1)} label="tygodni roboczych" />
-            <Stat value={num(w.working_years, 2)} label="lat roboczych" />
-          </div>
-          <div className="grid gap-1.5 text-left">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Udział w roku pracy</span>
-              <span className="tabular-nums">{num(w.working_years * 100, 1)}%</span>
+
+          {w.income_percent != null && <IncomeShare percent={w.income_percent} />}
+
+          {w.working_months != null && (
+          <section aria-labelledby="scale-month" className="grid gap-3 text-left">
+            <h3 id="scale-month" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              W skali miesiąca
+            </h3>
+            <p className="text-2xl font-semibold tabular-nums" data-testid="months">
+              {w.working_months < 1 ? num(w.working_months, 2) : monthsLabel(Math.round(w.working_months * 10) / 10)}
+              {w.working_months < 1 && <span className="text-base font-medium"> miesiąca pracy</span>}
+              {w.working_months >= 1 && <span className="text-base font-medium"> pracy</span>}
+            </p>
+            <MonthStrip months={w.working_months} />
+            <p className="-mt-1 text-xs text-muted-foreground">1 klocek = 1 miesiąc pracy</p>
+            <div className="grid grid-cols-2 gap-2 text-center sm:gap-3">
+              <Stat value={num(w.working_days, 1)} label="dni roboczych" />
+              <Stat value={num(w.working_weeks, 1)} label="tygodni roboczych" />
             </div>
-            <div
-              role="progressbar"
-              aria-label="Udział w roku pracy"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(yearShare)}
-              className="h-2 overflow-hidden rounded-full bg-muted"
-            >
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${yearShare}%` }} />
-            </div>
-          </div>
+          </section>
+          )}
+
+          <section aria-labelledby="scale-year" className="grid gap-2 text-left">
+            <h3 id="scale-year" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              W skali lat
+            </h3>
+            <p className="text-2xl font-semibold tabular-nums" data-testid="years">
+              {w.working_years < 1 ? num(w.working_years, 2) : yearsLabel(Math.round(w.working_years * 100) / 100)}
+              <span className="text-base font-medium">
+                {w.working_years < 1 ? " roku pracy" : " pracy"}
+              </span>
+            </p>
+            <ProgressBar value={w.working_years * 100} label="Udział w roku pracy" />
+          </section>
+
           {result.hourly_rate != null && (
             <p className="text-xs text-muted-foreground">Efektywna stawka: {money(result.hourly_rate, currency)}/h</p>
           )}
         </CardContent>
       </Card>
-
       {result.summary && (
         <p className="text-center text-sm">
           {result.summary.years} lat tego wydatku to około <b>{num(result.summary.working_days, 1)}</b> dni roboczych.
@@ -111,6 +123,7 @@ function HorizonsCard({ result, currency }: { result: Result; currency: string }
     hours: h.work.hours,
     cost: h.cost,
     time: hm(h.work.hours_part, h.work.minutes_part),
+    percent: h.work.income_percent,
   }));
   const config = { hours: { label: "Godziny pracy", color: "var(--chart-1)" } } satisfies ChartConfig;
 
@@ -135,7 +148,10 @@ function HorizonsCard({ result, currency }: { result: Result; currency: string }
             <li key={h.label} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 py-2">
               <span>{h.label}</span>
               <span className="text-right tabular-nums">{money(h.cost, currency)}</span>
-              <span className="min-w-20 text-right font-medium tabular-nums">{h.time}</span>
+              <span className="min-w-20 text-right tabular-nums">
+                <span className="font-medium">{h.time}</span>
+                {h.percent != null && <span className="block text-xs text-muted-foreground">{num(h.percent, 1)}% wypłaty</span>}
+              </span>
             </li>
           ))}
         </ul>
@@ -189,6 +205,70 @@ function Stat({ value, label }: { value: string; label: string }) {
     <div className="rounded-xl bg-muted/60 px-1 py-2.5">
       <div className="text-base font-semibold tabular-nums sm:text-lg">{value}</div>
       <div className="text-[11px] leading-tight text-muted-foreground sm:text-xs">{label}</div>
+    </div>
+  );
+}
+
+/** Procent miesięcznej wypłaty - uświadamia skalę wydatku. */
+function IncomeShare({ percent }: { percent: number }) {
+  if (percent <= 0) return null;
+  const tone =
+    percent >= 100
+      ? "bg-destructive/10 text-destructive"
+      : percent >= 25
+        ? "bg-chart-3/20 text-foreground"
+        : "bg-primary/10 text-foreground";
+  return (
+    <div className={`rounded-xl px-4 py-3 ${tone}`} data-testid="income-share">
+      {percent >= 100 ? (
+        <p className="text-lg font-semibold">
+          To <span className="tabular-nums">{num(percent / 100, 1)}×</span> Twojej miesięcznej wypłaty
+        </p>
+      ) : (
+        <p className="text-lg font-semibold">
+          To <span className="tabular-nums">{num(percent, percent < 10 ? 1 : 0)}%</span> Twojej miesięcznej wypłaty
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {percent >= 100 ? "Tyle miesięcy pracy oddajesz za ten wydatek." : "Tyle z miesięcznej pracy pochłania ten wydatek."}
+      </p>
+    </div>
+  );
+}
+
+/** 12 klocków = 12 miesięcy; wypełnienie pokazuje, ile miesięcy pracy kosztuje wydatek. */
+function MonthStrip({ months }: { months: number }) {
+  const shown = Math.min(12, Math.max(0, months));
+  return (
+    <div
+      role="img"
+      aria-label={`${num(months, 2)} miesiąca pracy`}
+      className="grid grid-cols-12 gap-1"
+    >
+      {Array.from({ length: 12 }, (_, i) => {
+        const fill = Math.max(0, Math.min(1, shown - i));
+        return (
+          <span key={i} className="h-3 overflow-hidden rounded-sm bg-muted">
+            <span className="block h-full bg-primary" style={{ width: `${fill * 100}%` }} />
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      className="h-2 overflow-hidden rounded-full bg-muted"
+    >
+      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
     </div>
   );
 }

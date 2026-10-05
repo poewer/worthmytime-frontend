@@ -21,11 +21,13 @@ export const HORIZON_LABEL: Record<string, string> = {
   "10 years": "10 lat",
 };
 
-/** Polska odmiana: 1 rok, 2-4 lata, 5+ lat (ułamki: "lat"). */
-export const yearsLabel = (y: number) => {
-  if (!Number.isInteger(y)) return `${num(y)} lat`;
-  const last = y % 10;
-  const teen = y % 100 >= 12 && y % 100 <= 14;
-  const word = y === 1 ? "rok" : last >= 2 && last <= 4 && !teen ? "lata" : "lat";
-  return `${y} ${word}`;
+/** Polska odmiana rzeczownika po liczbie: 1 rok, 2-4 lata, 5+ lat; ułamki w dopełniaczu ("0,5 roku"). */
+const plural = (n: number, one: string, few: string, many: string, fraction: string) => {
+  if (!Number.isInteger(n)) return `${num(n)} ${fraction}`;
+  const last = n % 10;
+  const teen = n % 100 >= 12 && n % 100 <= 14;
+  return `${n} ${n === 1 ? one : last >= 2 && last <= 4 && !teen ? few : many}`;
 };
+
+export const yearsLabel = (y: number) => plural(y, "rok", "lata", "lat", "roku");
+export const monthsLabel = (m: number) => plural(m, "miesiąc", "miesiące", "miesięcy", "miesiąca");

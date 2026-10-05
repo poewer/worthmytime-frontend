@@ -16,7 +16,7 @@ export const RESULT = {
   total_cost: 5299,
   breakdown: [{ name: "Purchase", amount: 5299 }],
   hourly_rate: 41.67,
-  work: { hours: 127.2, hours_part: 127, minutes_part: 11, working_days: 15.9, working_weeks: 3.18, working_years: 0.06 },
+  work: { hours: 127.2, hours_part: 127, minutes_part: 11, working_days: 15.9, working_weeks: 3.18, working_months: 0.76, working_years: 0.06, income_percent: 75.7 },
   life_cost: { years: 3, per_day: 4.84, per_week: 33.87, per_month: 147.19 },
 };
 

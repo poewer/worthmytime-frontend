@@ -34,7 +34,10 @@ export interface WorkTime {
   minutes_part: number;
   working_days: number;
   working_weeks: number;
+  working_months: number;
   working_years: number;
+  /** Jaka część miesięcznej wypłaty pochłania wydatek (100 = cała). Brak w widoku publicznym. */
+  income_percent?: number;
 }
 
 export interface Result {

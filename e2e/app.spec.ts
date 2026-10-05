@@ -15,6 +15,15 @@ test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   await page.getByRole("button", { name: "Oblicz" }).click();
 
   await expect(page.getByTestId("hours")).toContainText("127,2");
+  // wypłata -> miesiąc -> lata, w tej kolejności
+  await expect(page.getByTestId("income-share")).toContainText("76% Twojej miesięcznej wypłaty");
+  await expect(page.getByTestId("months")).toContainText("0,76 miesiąca pracy");
+  await expect(page.getByTestId("years")).toContainText("0,06 roku pracy");
+  const [monthsY, yearsY] = await Promise.all([
+    page.getByTestId("months").boundingBox().then((b) => b!.y),
+    page.getByTestId("years").boundingBox().then((b) => b!.y),
+  ]);
+  expect(monthsY).toBeLessThan(yearsY);
   await expect(page.getByText("Gdy używasz tego przez 3 lata")).toBeVisible();
   await expect(page.getByText("aby zapisać wynik w historii")).toBeVisible();
 });

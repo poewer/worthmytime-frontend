@@ -238,6 +238,18 @@ function ComparisonResult({ cmp }: { cmp: Comparison }) {
                   <td className="text-right">{hm(cmp.a.work.hours_part, cmp.a.work.minutes_part)}</td>
                   <td className="text-right">{hm(cmp.b.work.hours_part, cmp.b.work.minutes_part)}</td>
                 </tr>
+                {cmp.a.work.income_percent != null && cmp.b.work.income_percent != null && (
+                  <tr className="border-t">
+                    <td className="py-2 text-muted-foreground">% miesięcznej wypłaty</td>
+                    <td className="text-right">{num(cmp.a.work.income_percent, 1)}%</td>
+                    <td className="text-right">{num(cmp.b.work.income_percent, 1)}%</td>
+                  </tr>
+                )}
+                <tr className="border-t">
+                  <td className="py-2 text-muted-foreground">Miesiące pracy</td>
+                  <td className="text-right">{num(cmp.a.work.working_months, 2)}</td>
+                  <td className="text-right">{num(cmp.b.work.working_months, 2)}</td>
+                </tr>
                 <tr className="border-t">
                   <td className="py-2 text-muted-foreground">Dni robocze</td>
                   <td className="text-right">{num(cmp.a.work.working_days, 1)}</td>
