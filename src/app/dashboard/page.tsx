@@ -57,6 +57,7 @@ export default function DashboardPage() {
       totalValue: oneOff.reduce((s, c) => s + c.result.total_cost, 0),
       totalHours: oneOff.reduce((s, c) => s + c.result.work.hours, 0),
       totalDays: oneOff.reduce((s, c) => s + c.result.work.working_days, 0),
+      totalMonths: oneOff.reduce((s, c) => s + c.result.work.working_months, 0),
       largest: [...oneOff].sort((a, b) => b.result.total_cost - a.result.total_cost)[0] ?? null,
       recurring,
       recurringYearly: recurring.reduce((s, c) => s + (yearly(c)?.cost ?? 0), 0),
@@ -110,7 +111,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Metric label="Przeanalizowane zakupy" value={money(stats.totalValue, currency)} />
             <Metric label="Godziny pracy" value={`${num(stats.totalHours, 1)} h`} />
-            <Metric label="Dni robocze" value={num(stats.totalDays, 1)} />
+            <Metric label="Dni robocze" value={num(stats.totalDays, 1)} sub={`≈ ${num(stats.totalMonths, 1)} mies. pracy`} />
             <Metric
               label="Największy wydatek"
               value={stats.largest?.name ?? "-"}
