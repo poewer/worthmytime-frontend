@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001/api/v1";
 
 export type Frequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type CalcType = "SIMPLE" | "RECURRING" | "TCO";
