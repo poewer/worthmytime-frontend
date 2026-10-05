@@ -12,9 +12,12 @@ const lineName = (n: string) => LINE_LABEL[n] ?? n;
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 export default function ResultView({ result, currency = "PLN" }: { result: Result; currency?: string }) {
-  const w = result.work;
-  // koszt cykliczny: nagłówek to jeden miesiąc, a dalsze horyzonty pokazują narastanie
+  // koszt cykliczny: nagłówek to zawsze JEDEN miesiąc (1 800 zł / mies.), a horyzonty niżej pokazują narastanie.
+  // Bierzemy go z horyzontu "1 month", więc działa też ze starszym API, które w nagłówku dawało sumę z 10 lat.
   const recurring = result.type === "RECURRING";
+  const month = recurring ? result.horizons?.find((h) => h.label === "1 month") : undefined;
+  const w = month?.work ?? result.work;
+  const headlineCost = month?.cost ?? result.total_cost;
 
   return (
     <div className="grid gap-4">
@@ -23,7 +26,7 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
           <div>
             <p className="text-sm text-muted-foreground">{result.name}</p>
             <p className="text-lg font-semibold tabular-nums">
-              {money(result.total_cost, currency)}
+              {money(headlineCost, currency)}
               {recurring && <span className="text-sm font-normal text-muted-foreground"> / miesiąc</span>}
             </p>
           </div>
@@ -219,7 +222,7 @@ function Stat({ value, label }: { value: string; label: string }) {
 /** Procent miesięcznej wypłaty - uświadamia skalę wydatku. */
 /** Procent poniżej 100, a od 100 wielokrotność wypłaty (27× czytelniejsze niż 2 700%). */
 function shareLabel(percent: number) {
-  return percent >= 100 ? `${num(percent / 100, 1)}× wypłaty` : `${num(percent, percent < 10 ? 1 : 0)}% wypłaty`;
+  return percent >= 100 ? `${num(percent / 100, 1)}× wypłaty` : `${num(percent, 1)}% wypłaty`;
 }
 
 function IncomeShare({ percent, recurring = false }: { percent: number; recurring?: boolean }) {
@@ -238,7 +241,7 @@ function IncomeShare({ percent, recurring = false }: { percent: number; recurrin
         </p>
       ) : (
         <p className="text-lg font-semibold">
-          To <span className="tabular-nums">{num(percent, percent < 10 ? 1 : 0)}%</span> Twojej miesięcznej wypłaty
+          To <span className="tabular-nums">{num(percent, 1)}%</span> Twojej miesięcznej wypłaty
         </p>
       )}
       <p className="text-xs text-muted-foreground">
@@ -258,7 +261,7 @@ function MonthStrip({ months }: { months: number }) {
   return (
     <div
       role="img"
-      aria-label={`${num(months, 2)} miesiąca pracy`}
+      aria-label={`${months < 1 ? num(months, 2) + " miesiąca" : monthsLabel(Math.round(months * 10) / 10)} pracy`}
       className="grid grid-cols-12 gap-1"
     >
       {Array.from({ length: 12 }, (_, i) => {

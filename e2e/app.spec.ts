@@ -16,7 +16,7 @@ test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
 
   await expect(page.getByTestId("hours")).toContainText("127,2");
   // wypłata -> miesiąc -> lata, w tej kolejności
-  await expect(page.getByTestId("income-share")).toContainText("76% Twojej miesięcznej wypłaty");
+  await expect(page.getByTestId("income-share")).toContainText("75,7% Twojej miesięcznej wypłaty");
   await expect(page.getByTestId("months")).toContainText("0,76 miesiąca pracy");
   await expect(page.getByTestId("years")).toContainText("0,06 roku pracy");
   const [monthsY, yearsY] = await Promise.all([
@@ -50,11 +50,11 @@ test("błąd 422 z API trafia do właściwego pola", async ({ page }) => {
 
 test("koszt cykliczny: wykres i tabela horyzontów", async ({ page }) => {
   await withLocalProfile(page);
-  const horizon = (label: string, years: number, cost: number, hours: number) => ({
+  const horizon = (label: string, years: number, cost: number, hours: number, pct: number) => ({
     label,
     years,
     cost,
-    work: { ...RESULT.work, hours, hours_part: Math.floor(hours), minutes_part: 0 },
+    work: { ...RESULT.work, hours, hours_part: Math.floor(hours), minutes_part: 0, income_percent: pct },
   });
   await page.route("**/api/v1/calculate", (r) =>
     json(r, {
@@ -65,7 +65,7 @@ test("koszt cykliczny: wykres i tabela horyzontów", async ({ page }) => {
       work: { ...RESULT.work, hours: 1.18, hours_part: 1, minutes_part: 11, working_months: 0.01, income_percent: 0.7 },
       life_cost: null,
       breakdown: [{ name: "Netflix", amount: 49, frequency: "MONTHLY" }],
-      horizons: [horizon("1 month", 0.0833, 49, 1.18), horizon("1 year", 1, 588, 14.1), horizon("10 years", 10, 5880, 141.1)],
+      horizons: [horizon("1 month", 0.0833, 49, 1.18, 0.7), horizon("1 year", 1, 588, 14.1, 8.4), horizon("10 years", 10, 5880, 141.1, 84)],
       summary: { years: 10, working_days: 17.64 },
     }),
   );
@@ -81,6 +81,37 @@ test("koszt cykliczny: wykres i tabela horyzontów", async ({ page }) => {
   await expect(page.getByText("Jak to narasta w czasie")).toBeVisible();
   await expect(page.getByText("W skali lat")).toBeHidden();
   await expect(page.getByText("10 lat tego wydatku to około")).toBeVisible();
+});
+
+test("koszt cykliczny: nagłówek to 1 miesiąc nawet gdy API zwróci sumę z 10 lat", async ({ page }) => {
+  await withLocalProfile(page);
+  const w = (hours: number, pct: number, months: number) => ({ ...RESULT.work, hours, hours_part: Math.floor(hours), minutes_part: 0, working_months: months, income_percent: pct });
+  await page.route("**/api/v1/calculate", (r) =>
+    json(r, {
+      ...RESULT,
+      name: "Pensjonat",
+      type: "RECURRING",
+      total_cost: 216000, // stare API: suma z 10 lat w polu total_cost/work
+      work: w(4536, 2700, 27),
+      life_cost: null,
+      breakdown: [{ name: "Pensjonat", amount: 1800, frequency: "MONTHLY" }],
+      horizons: [
+        { label: "1 month", years: 0.0833, cost: 1800, work: w(37.8, 22.5, 0.23) },
+        { label: "1 year", years: 1, cost: 21600, work: w(453.6, 270, 2.7) },
+        { label: "10 years", years: 10, cost: 216000, work: w(4536, 2700, 27) },
+      ],
+    }),
+  );
+  await page.goto("/calculator");
+  await page.getByRole("tab", { name: "Cykliczny" }).click();
+  await page.getByLabel("Co chcesz kupić?").fill("Pensjonat");
+  await page.getByLabel("Kwota").fill("1800");
+  await page.getByLabel("Nazwa").fill("Pensjonat");
+  await page.getByRole("button", { name: "Oblicz" }).click();
+  await expect(page.getByTestId("hours")).toContainText("37,8");
+  await expect(page.getByTestId("income-share")).toContainText("22,5%");
+  await expect(page.getByText("/ miesiąc").first()).toBeVisible();
+  await expect(page.getByText("27× wypłaty")).toBeVisible(); // dopiero w sekcji narastania
 });
 
 test("rejestracja, zapis w historii i publiczny link", async ({ page }) => {
