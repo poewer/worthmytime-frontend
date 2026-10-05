@@ -1,0 +1,112 @@
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+export type Frequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+export type CalcType = "SIMPLE" | "RECURRING" | "TCO";
+
+export interface Profile {
+  currency: string;
+  monthly_income: number | null;
+  hourly_rate: number | null;
+  hours_per_day: number;
+  days_per_week: number;
+  effective_hourly_rate?: number | null;
+  hours_per_month?: number;
+}
+
+export interface CostIn {
+  name: string;
+  amount: number;
+  frequency: Frequency;
+}
+
+export interface CalculationIn {
+  name: string;
+  type: CalcType;
+  purchase_price: number;
+  ownership_years: number | null;
+  resale_value: number;
+  costs: CostIn[];
+}
+
+export interface WorkTime {
+  hours: number;
+  hours_part: number;
+  minutes_part: number;
+  working_days: number;
+  working_weeks: number;
+  working_years: number;
+}
+
+export interface Result {
+  name: string;
+  type: CalcType;
+  currency?: string;
+  total_cost: number;
+  breakdown: { name: string; amount: number; frequency?: Frequency }[];
+  hourly_rate?: number;
+  work: WorkTime;
+  life_cost: { years: number; per_day: number; per_week: number; per_month: number } | null;
+  horizons?: { label: string; years: number; cost: number; work: WorkTime }[];
+  summary?: { years: number; working_days: number };
+}
+
+export interface Comparison {
+  currency: string;
+  a: Result;
+  b: Result;
+  difference: { cost: number; hours: number; working_days: number };
+}
+
+export interface SavedCalculation {
+  id: string;
+  public_id: string | null;
+  name: string;
+  type: CalcType;
+  currency: string;
+  created_at: string;
+  input: CalculationIn;
+  result: Result;
+}
+
+export interface Dashboard {
+  currency: string;
+  count: number;
+  total_value: number;
+  total_hours: number;
+  total_working_days: number;
+  largest_expense: { id: string; name: string; total_cost: number; hours: number } | null;
+  recurring: { id: string; name: string; yearly_cost: number; yearly_hours: number }[];
+  recurring_yearly_total: number;
+  recent: SavedCalculation[];
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
+const TOKEN_KEY = "wmt_token";
+
+export const getToken = () =>
+  typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string | null) => {
+  if (t) window.localStorage.setItem(TOKEN_KEY, t);
+  else window.localStorage.removeItem(TOKEN_KEY);
+};
+
+export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
+    headers: {
+      ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data.error ?? `Błąd ${res.status}`, res.status);
+  return data as T;
+}
