@@ -41,9 +41,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </a>
           <Nav />
           {/* pb: miejsce na dolny pasek nawigacji na telefonie */}
-          <main id="content" className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:pb-12">
+          <main id="content" className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-8">
             {children}
           </main>
+          <footer className="mx-auto w-full max-w-5xl px-4 pb-24 text-center text-xs text-muted-foreground lg:pb-8">
+            WorthMyTime pokazuje fakty i symulacje na Twoich założeniach. To nie jest porada finansowa ani inwestycyjna - decyzja zawsze należy do Ciebie.
+          </footer>
         </Providers>
       </body>
     </html>

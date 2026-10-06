@@ -94,6 +94,12 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
         </div>
       )}
 
+      {type !== "RECURRING" && (
+        <Field label="Ile razy tego użyjesz? (opcjonalnie)" hint="Policzymy koszt jednego użycia" error={errors.expected_uses?.message}>
+          {(p) => <Input {...p} inputMode="numeric" placeholder="np. 300" className="h-11" {...register("expected_uses")} />}
+        </Field>
+      )}
+
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm font-medium">Kategoria budżetu (opcjonalnie)</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Kategoria budżetu">

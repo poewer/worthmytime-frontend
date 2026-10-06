@@ -83,6 +83,43 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
       </Card>
       {result.budget && <BudgetCard budget={result.budget} currency={currency} />}
 
+      {result.per_use && (
+        <Card data-testid="per-use">
+          <CardHeader>
+            <CardTitle>Koszt jednego użycia</CardTitle>
+            <CardDescription>Przy {num(result.per_use.uses, 0)} użyciach</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-2 text-center sm:gap-3">
+            <Stat value={money(result.per_use.cost, currency)} label="za jedno użycie" />
+            <Stat value={`${num(result.per_use.work_minutes, 1)} min`} label="Twojej pracy" />
+          </CardContent>
+        </Card>
+      )}
+
+      {!recurring && w.income_percent != null && w.income_percent > 0 && (
+        <Card size="sm" data-testid="equivalents">
+          <CardHeader>
+            <CardTitle className="text-base">Dla porównania</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-1.5 text-sm text-muted-foreground">
+              <li>
+                To około <b className="text-foreground">{num(w.working_days, 1)} dni</b> roboczych - tyle, co {num(w.working_days, 1)} dni
+                urlopu bez wypłaty.
+              </li>
+              <li>
+                To <b className="text-foreground">{num(w.income_percent / 12, 1)}%</b> Twojego rocznego dochodu netto.
+              </li>
+              {w.working_months >= 1 && (
+                <li>
+                  Pracujesz na to <b className="text-foreground">{monthsLabel(Math.round(w.working_months * 10) / 10)}</b>.
+                </li>
+              )}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {result.horizons && <HorizonsCard result={result} currency={currency} />}
 
       {result.summary && (

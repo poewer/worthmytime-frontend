@@ -19,7 +19,66 @@ export interface BudgetPlan {
   loans: LoanIn[];
 }
 
+export interface Expense {
+  id: string;
+  category: Category;
+  amount: number;
+  note: string | null;
+  spent_on: string; // YYYY-MM-DD
+}
+
+export interface MonthSummary {
+  month: string; // YYYY-MM
+  totals: Record<Category, number>;
+  total: number;
+}
+
+export interface WishlistItem {
+  id: string;
+  name: string;
+  price: number;
+  category: Category | null;
+  cooldown_days: number;
+  status: "WAITING" | "BOUGHT" | "DROPPED";
+  created_at: string;
+  decided_at: string | null;
+  ready_at: string;
+  days_left: number;
+  ready: boolean;
+  work: WorkTime | null;
+}
+
+export interface WishlistStats {
+  dropped_count: number;
+  dropped_total: number;
+  dropped_hours: number;
+  waiting_count: number;
+  waiting_total: number;
+  ready_count: number;
+}
+
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  target_amount: number;
+  saved_amount: number;
+  monthly_contribution: number | null;
+  target_date: string | null;
+  remaining: number;
+  percent: number;
+  completed: boolean;
+  months_to_goal: number | null;
+  months_to_goal_full: number | null;
+  eta: string | null;
+  required_monthly: number | null;
+  on_track: boolean | null;
+  work_hours_remaining: number | null;
+}
+
 export interface BudgetState extends BudgetPlan {
+  /** Wpisy z rejestru wydatków w bieżącym miesiącu i razem z ręczną kwotą. */
+  ledger: Record<Category, number>;
+  spent_total: Record<Category, number>;
   monthly_loans: number;
   loans_income_percent: number | null;
   last_installment_in_months: number;
@@ -91,7 +150,13 @@ export interface Profile {
   hourly_rate: number | null;
   hours_per_day: number;
   days_per_week: number;
+  /** Realna stawka: dojazd i koszty związane z pracą (opcjonalnie). */
+  commute_minutes_per_day?: number;
+  work_costs_monthly?: number;
+  rate_mode?: "NOMINAL" | "REAL";
   effective_hourly_rate?: number | null;
+  nominal_hourly_rate?: number | null;
+  real_hourly_rate?: number | null;
   hours_per_month?: number;
 }
 
@@ -108,6 +173,7 @@ export interface CalculationIn {
   ownership_years: number | null;
   resale_value: number;
   costs: CostIn[];
+  expected_uses?: number | null;
   category?: Category | null;
   already_saved?: number;
   monthly_contribution?: number | null;
@@ -134,6 +200,8 @@ export interface Result {
   hourly_rate?: number;
   work: WorkTime;
   life_cost: { years: number; per_day: number; per_week: number; per_month: number } | null;
+  /** Koszt jednego użycia (gdy podano expected_uses). */
+  per_use?: { uses: number; cost: number; work_minutes: number } | null;
   horizons?: { label: string; years: number; cost: number; work: WorkTime }[];
   summary?: { years: number; working_days: number };
   /** Analiza planu budżetowego - tylko gdy wybrano kategorię. */
