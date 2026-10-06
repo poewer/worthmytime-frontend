@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
+import { useLedger } from "@/lib/use-ledger";
 import {
   applyServerErrors,
   BUDGET_CATEGORIES,
@@ -35,7 +37,8 @@ const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? Number(s.rep
 
 export default function BudgetPage() {
   const { ready, profile, monthlyIncome, budget, saveBudget } = useApp();
-  if (!ready) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
+  const ledger = useLedger();
+  if (!ready || ledger.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
   const hoursPerMonth = (profile.hours_per_day * profile.days_per_week * 52) / 12;
   return (
@@ -46,6 +49,7 @@ export default function BudgetPage() {
       currency={profile.currency}
       budget={budget}
       save={saveBudget}
+      spent={ledger.totals}
     />
   );
 }
@@ -56,7 +60,9 @@ function BudgetForm({
   currency,
   budget,
   save,
+  spent: spentByCategory,
 }: {
+  spent: Record<Category, number>;
   income: number;
   hourlyRate: number;
   currency: string;
@@ -85,7 +91,7 @@ function BudgetForm({
   const monthlyLoans = loans.reduce((s, l) => s + l.installment, 0);
 
   const pct = (c: Category) => toNumber(w[`pct_${c}`]);
-  const spent = (c: Category) => toNumber(w[`spent_${c}`]);
+  const spent = (c: Category) => spentByCategory[c] ?? 0;
   const sum = BUDGET_CATEGORIES.reduce((s, c) => s + pct(c), 0);
   const totalSpent = BUDGET_CATEGORIES.reduce((s, c) => s + spent(c), 0) + monthlyLoans;
   const sumOk = Math.abs(sum - 100) < 0.01;
@@ -104,7 +110,8 @@ function BudgetForm({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Plan budżetu</h1>
         <p className="text-sm text-muted-foreground">
-          Podziel miesięczny dochód ({money(income, currency)}) na koszyki. Przy każdym zakupie sprawdzimy, czy mieści się w budżecie wybranej kategorii.
+          Podziel miesięczny dochód ({money(income, currency)}) na koszyki. Przy każdym zakupie sprawdzimy, czy mieści się w budżecie wybranej kategorii. Wydane w kategoriach
+          liczymy z rejestru <Link href="/expenses" className="text-primary underline">Wydatki</Link> - tutaj ustawiasz tylko procenty i kredyty.
         </p>
       </div>
 
@@ -124,20 +131,12 @@ function BudgetForm({
                 <CardDescription>{info.hint}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Udział w dochodzie (%)" error={errors[`pct_${c}`]?.message}>
-                    {(p) => <Input {...p} inputMode="decimal" className="h-11" {...register(`pct_${c}`)} />}
-                  </Field>
-                  <Field
-                    label="Wydane w tym miesiącu"
-                    hint={c === "NEEDS" ? "Bez rat kredytów - te dodajemy automatycznie z sekcji poniżej" : "Ile już poszło z tej kategorii"}
-                    error={errors[`spent_${c}`]?.message}
-                  >
-                    {(p) => <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register(`spent_${c}`)} />}
-                  </Field>
-                </div>
+                <Field label="Udział w dochodzie (%)" error={errors[`pct_${c}`]?.message}>
+                  {(p) => <Input {...p} inputMode="decimal" className="h-11 sm:max-w-40" {...register(`pct_${c}`)} />}
+                </Field>
                 <p className="text-sm text-muted-foreground">
-                  Budżet: <b className="text-foreground tabular-nums">{money(amount, currency)}</b> · dostępne:{" "}
+                  Budżet: <b className="text-foreground tabular-nums">{money(amount, currency)}</b> · wydane (rejestr
+                  {loansHere > 0 ? " + raty" : ""}): <b className="text-foreground tabular-nums">{money(spent(c) + loansHere, currency)}</b> · dostępne:{" "}
                   <b className={available < 0 ? "text-destructive tabular-nums" : "text-foreground tabular-nums"}>{money(available, currency)}</b>
                 </p>
               </CardContent>

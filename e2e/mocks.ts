@@ -77,10 +77,21 @@ export const BUDGET_EXCEEDED = {
 
 export const BUDGET_PLAN = {
   percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
-  spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 400 },
+  spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
   loans: [] as { name: string; installment_amount: number; installments_left: number; loan_amount?: number | null }[],
 };
 
 export async function withLocalBudget(page: Page) {
   await page.addInitScript((b) => window.localStorage.setItem("wmt_budget", JSON.stringify(b)), BUDGET_PLAN);
+}
+/** Wpisy w rejestrze wydatków anonimowego użytkownika (z datą dzisiejszą, więc liczą się do bieżącego miesiąca). */
+export async function withLocalLedger(page: Page, entries: { category: string; amount: number; note?: string }[]) {
+  await page.addInitScript((items) => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    window.localStorage.setItem(
+      "wmt_ledger",
+      JSON.stringify(items.map((e, i) => ({ id: `e${i}`, note: null, spent_on: today, ...e }))),
+    );
+  }, entries);
 }

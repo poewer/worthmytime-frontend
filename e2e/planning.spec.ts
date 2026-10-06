@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { json, PROFILE, RESULT, SAVED, withLocalProfile } from "./mocks";
+import { json, PROFILE, RESULT, SAVED, withLocalLedger, withLocalProfile } from "./mocks";
 
 /** Zalogowany użytkownik: token w localStorage + /auth/me i pusty /budget. */
 async function asLoggedIn(page: Page) {
@@ -15,7 +15,7 @@ async function asLoggedIn(page: Page) {
       loans_income_percent: null,
       last_installment_in_months: 0,
       amounts: { NEEDS: 3500, FUTURE: 1750, GOALS: 1050, FUN: 700 },
-      available: null,
+      available: { NEEDS: 3500, FUTURE: 1750, GOALS: 1050, FUN: 500 },
       monthly_income: 7000,
       total_spent: 0,
       is_custom: false,
@@ -180,4 +180,74 @@ test("menu Więcej udostępnia pozostałe sekcje", async ({ page, isMobile }) =>
     await expect(page.getByRole("menuitem", { name: "Cele" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Subskrypcje" })).toBeVisible();
   }
+});
+
+test("maksymalna miesięczna wpłata z kategorii: podpowiedź, szybkie wypełnienie i ostrzeżenie o przekroczeniu", async ({ page }) => {
+  await withLocalProfile(page); // dochód 7 000 zł: budżet Przyjemności to 700 zł
+  await withLocalLedger(page, [{ category: "FUN", amount: 200 }]); // zostaje 500 zł
+  await page.goto("/calculator");
+  await page.getByLabel("Co chcesz kupić?").fill("Konsola");
+  await page.getByLabel("Cena").fill("2500");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+
+  const hint = page.getByTestId("category-availability");
+  await expect(hint).toContainText("500,00");
+  await expect(hint).toContainText("Przyjemności");
+  await expect(page.getByText("Zostaw puste, a przyjmiemy maksimum: 500,00")).toBeVisible();
+
+  await hint.getByRole("button", { name: "Użyj maksimum" }).click();
+  await expect(page.getByLabel("Miesięczna wpłata")).toHaveValue("500");
+
+  await page.getByLabel("Miesięczna wpłata").fill("800");
+  await expect(page.getByText("Więcej niż dostępne w kategorii (500,00")).toBeVisible();
+});
+
+test("karta budżetu: maksymalna wpłata z kategorii i ostrzeżenie o zbyt dużej wpłacie", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.route("**/api/v1/calculate", (r) =>
+    json(r, {
+      ...RESULT,
+      budget: {
+        category: "FUN", priority: "P4", percentage: 10, category_budget: 1000, spent: 200, available: 800, usage_percent: 20,
+        is_custom: true, fits_budget: false, obligations: null, monthly: null,
+        upfront: {
+          cost: 3200, projected_spent: 3400, projected_usage_percent: 340, purchase_share_percent: 320, coverage_ratio: 400,
+          months_to_goal: 3.2, months_to_goal_full: 4, monthly_contribution: 1000, max_monthly_contribution: 800,
+          contribution_source: "USER", already_saved: 0, income_percent: 32,
+        },
+        warnings: [{ code: "CONTRIBUTION_EXCEEDS_AVAILABLE", level: "warning", params: { category: "FUN", planned: 1000, max_monthly: 800, overrun: 200 } }],
+      },
+    }),
+  );
+  await page.goto("/calculator");
+  await page.getByLabel("Co chcesz kupić?").fill("Konsola");
+  await page.getByLabel("Cena").fill("3200");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await page.getByLabel("Miesięczna wpłata").fill("1000");
+  await page.getByRole("button", { name: "Oblicz" }).click();
+
+  await expect(page.getByTestId("max-contribution")).toContainText("800,00");
+  await expect(page.getByTestId("max-contribution")).toContainText("Planujesz więcej: 1 000,00");
+  await expect(page.getByTestId("warning-CONTRIBUTION_EXCEEDS_AVAILABLE")).toContainText("brakuje 200,00");
+});
+
+test("cel z kategorii: maksymalna wpłata wynika z wolnych środków kategorii", async ({ page }) => {
+  await asLoggedIn(page);
+  const goal = {
+    id: "g9", name: "Konsola", category: "FUN", target_amount: 3200, saved_amount: 0, monthly_contribution: null,
+    effective_contribution: 800, max_monthly_contribution: 800, contribution_source: "CATEGORY_AVAILABLE", contribution_exceeds: false,
+    target_date: null, remaining: 3200, percent: 0, completed: false, months_to_goal: 4, months_to_goal_full: 4, eta: "2027-02-06",
+    required_monthly: null, on_track: null, work_hours_remaining: 79,
+  };
+  await page.route("**/api/v1/goals", (r) => json(r, { items: [goal, { ...goal, id: "g10", name: "Rower", monthly_contribution: 900, contribution_exceeds: true, effective_contribution: 900, contribution_source: "USER" }], currency: "PLN" }));
+
+  await page.goto("/goals");
+  const card = page.getByTestId("goal-g9");
+  await expect(card.getByTestId("goal-max")).toContainText("800,00");
+  await expect(card.getByTestId("goal-eta")).toContainText("luty 2027");
+  await expect(card).toContainText("Przyjemności");
+  await expect(page.getByTestId("goal-g10").getByTestId("goal-exceeds")).toBeVisible();
+
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await expect(page.getByTestId("goal-category-availability")).toContainText("Przyjemności");
 });

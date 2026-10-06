@@ -67,9 +67,8 @@ export default function ExpensesPage() {
   // budżet, wydane (ręcznie + rejestr + raty w Potrzebach) per kategoria
   const rows = BUDGET_CATEGORIES.map((c) => {
     const amount = ledger.serverBudget?.amounts?.[c] ?? (monthlyIncome * percentages[c]) / 100;
-    const manual = ledger.serverBudget ? ledger.serverBudget.spent[c] : (budget?.spent[c] ?? 0);
     const loans = c === "NEEDS" ? loansTotal : 0;
-    const spent = manual + ledger.totals[c] + loans;
+    const spent = ledger.totals[c] + loans;
     return { c, amount, spent, usage: amount > 0 ? (spent / amount) * 100 : null, fromLedger: ledger.totals[c] };
   });
 

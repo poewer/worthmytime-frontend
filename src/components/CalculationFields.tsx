@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_INFO, FREQ_LABEL } from "@/lib/format";
+import { useCategoryAvailability } from "@/lib/use-availability";
+import { money } from "@/lib/format";
 import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut } from "@/lib/forms";
 import type { CalcType } from "@/lib/api";
+import { useApp } from "./AppProvider";
 import { Field } from "./FormField";
 
 export type CalcForm = UseFormReturn<CalcFormIn, unknown, CalcFormOut>;
@@ -41,6 +44,13 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
   const { fields, append, remove } = useFieldArray({ control, name: "costs" });
   const type = watch("type");
   const category = watch("category");
+  const planned = watch("monthly_contribution");
+  const { profile } = useApp();
+  const currency = profile?.currency ?? "PLN";
+  const availability = useCategoryAvailability();
+  const free = category && availability ? Math.max(availability[category], 0) : null;
+  const plannedNumber = Number(String(planned ?? "").replace(",", "."));
+  const overMax = free != null && planned !== "" && Number.isFinite(plannedNumber) && plannedNumber > free;
   const costsError = errors.costs?.root?.message ?? (errors.costs as { message?: string } | undefined)?.message;
 
   function changeType(next: CalcType) {
@@ -128,6 +138,22 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
         </p>
       </fieldset>
 
+      {category && type !== "RECURRING" && free != null && (
+        <div className="rounded-xl bg-primary/10 px-3 py-2.5 text-sm" data-testid="category-availability" aria-live="polite">
+          W kategorii <b>{CATEGORY_INFO[category].label}</b> zostało w tym miesiącu <b className="tabular-nums">{money(free, currency)}</b> - tyle
+          maksymalnie możesz miesięcznie przeznaczyć na ten wydatek.
+          {free > 0 && (
+            <button
+              type="button"
+              className="ml-2 font-medium text-primary underline"
+              onClick={() => setValue("monthly_contribution", String(free), { shouldDirty: true })}
+            >
+              Użyj maksimum
+            </button>
+          )}
+        </div>
+      )}
+
       {category && type !== "RECURRING" && (
         <div className="grid items-start gap-4 sm:grid-cols-2">
           <Field label="Już odłożone" hint="Na ten zakup" error={errors.already_saved?.message}>
@@ -135,8 +161,8 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
           </Field>
           <Field
             label="Miesięczna wpłata"
-            hint="Domyślnie cały budżet kategorii"
-            error={errors.monthly_contribution?.message}
+            hint={free != null ? `Zostaw puste, a przyjmiemy maksimum: ${money(free, currency)}` : "Zostaw puste, a przyjmiemy maksimum z kategorii"}
+            error={errors.monthly_contribution?.message ?? (overMax ? `Więcej niż dostępne w kategorii (${money(free ?? 0, currency)})` : undefined)}
           >
             {(p) => <Input {...p} inputMode="decimal" placeholder="np. 1000" className="h-11" {...register("monthly_contribution")} />}
           </Field>

@@ -60,6 +60,12 @@ export interface WishlistStats {
 export interface SavingsGoal {
   id: string;
   name: string;
+  category: Category | null;
+  /** Wpłata faktycznie użyta w obliczeniach: własna albo maksimum z kategorii. */
+  effective_contribution: number | null;
+  max_monthly_contribution: number | null;
+  contribution_source: "USER" | "CATEGORY_AVAILABLE" | null;
+  contribution_exceeds: boolean;
   target_amount: number;
   saved_amount: number;
   monthly_contribution: number | null;
@@ -76,9 +82,7 @@ export interface SavingsGoal {
 }
 
 export interface BudgetState extends BudgetPlan {
-  /** Wpisy z rejestru wydatków w bieżącym miesiącu i razem z ręczną kwotą. */
-  ledger: Record<Category, number>;
-  spent_total: Record<Category, number>;
+  // `spent`: wydane w bieżącym miesiącu w kategoriach = suma wpisów z rejestru wydatków (nie edytuje się ich tutaj)
   monthly_loans: number;
   loans_income_percent: number | null;
   last_installment_in_months: number;
@@ -98,6 +102,8 @@ export interface BudgetWarning {
     | "CATEGORY_BUDGET_TIGHT"
     | "BUDGET_DEFICIT"
     | "LOANS_EXCEED_NEEDS_BUDGET"
+    | "CONTRIBUTION_EXCEEDS_AVAILABLE"
+    | "NO_FREE_BUDGET"
     | "HIGHER_PRIORITY_AT_RISK"
     | "NO_BUDGET_DATA";
   level: WarningLevel;
@@ -131,6 +137,9 @@ export interface BudgetAnalysis {
     months_to_goal: number | null;
     months_to_goal_full: number | null;
     monthly_contribution: number;
+    /** Ile maksymalnie można miesięcznie przeznaczyć na ten wydatek: wolne środki kategorii w tym miesiącu. */
+    max_monthly_contribution: number;
+    contribution_source: "USER" | "CATEGORY_AVAILABLE";
     already_saved: number;
     income_percent: number | null;
   } | null;

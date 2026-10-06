@@ -22,7 +22,7 @@ export function warningText(w: BudgetWarning, currency: string): { title: string
         body:
           p.projected_usage_percent == null
             ? `Kategoria „${cat}” nie ma przydzielonego budżetu, a ten wydatek to ${m("overrun")} ponad plan.`
-            : `Po tym zakupie wydatki w kategorii „${cat}” wyniosą ${pct(p.projected_usage_percent)} jej miesięcznego budżetu - o ${m("overrun")} ponad plan. W tym miesiącu zostało w niej ${m("available")}.`,
+            : `Po tym zakupie wydatki w kategorii „${cat}” wyniosą ${pct(p.projected_usage_percent)} jej miesięcznego budżetu - o ${m("overrun")} ponad plan. W tym miesiącu zostało w niej ${m("available")}. Jednorazowo się nie zmieści, ale możesz rozłożyć zakup w czasie - patrz maksymalna miesięczna wpłata poniżej.`,
       };
     case "MONTHLY_COST_EXCEEDS_AVAILABLE":
       return {
@@ -38,6 +38,16 @@ export function warningText(w: BudgetWarning, currency: string): { title: string
       return {
         title: "Raty kredytów zjadają cały budżet Potrzeb",
         body: `Same raty (${m("monthly_loans")} miesięcznie) są wyższe niż budżet kategorii Potrzeby (${m("needs_budget")}) o ${m("overrun")}. Na pozostałe potrzeby i nowe wydatki zabraknie środków.`,
+      };
+    case "CONTRIBUTION_EXCEEDS_AVAILABLE":
+      return {
+        title: "Ta wpłata nie mieści się w budżecie kategorii",
+        body: `Planujesz odkładać ${m("planned")} miesięcznie, a z kategorii „${cat}” możesz w tym miesiącu przeznaczyć najwyżej ${m("max_monthly")} - brakuje ${m("overrun")}. Zmniejsz wpłatę albo wydłuż czas oszczędzania.`,
+      };
+    case "NO_FREE_BUDGET":
+      return {
+        title: "W tym miesiącu nie ma wolnych środków",
+        body: `W kategorii „${cat}” nie zostało nic wolnego (${m("available")}), więc nie ma z czego odkładać na ten wydatek, dopóki budżet się nie odnowi albo nie zmienisz procentów.`,
       };
     case "HIGHER_PRIORITY_AT_RISK":
       return {
@@ -142,6 +152,17 @@ export default function BudgetCard({ budget, currency = "PLN" }: { budget: Budge
               percent={budget.upfront.projected_usage_percent}
               over={over}
             />
+            <p
+              className="rounded-lg bg-primary/10 px-3 py-2 text-sm"
+              data-testid="max-contribution"
+            >
+              Na ten wydatek możesz przeznaczyć miesięcznie maksymalnie{" "}
+              <b className="tabular-nums">{money(budget.upfront.max_monthly_contribution, currency)}</b> - tyle zostało w kategorii „{info.label}” w tym
+              miesiącu.
+              {budget.upfront.contribution_source === "USER" && budget.upfront.monthly_contribution > budget.upfront.max_monthly_contribution && (
+                <span className="text-destructive"> Planujesz więcej: {money(budget.upfront.monthly_contribution, currency)}.</span>
+              )}
+            </p>
             <dl className="grid gap-1 text-sm">
               <Row label={`Zakup to ${pct(budget.upfront.purchase_share_percent)} miesięcznego budżetu „${info.label}”`} />
               <Row label="Udział w miesięcznym dochodzie" value={pct(budget.upfront.income_percent)} />
@@ -150,7 +171,9 @@ export default function BudgetCard({ budget, currency = "PLN" }: { budget: Budge
               )}
               {budget.upfront.months_to_goal != null && (
                 <Row
-                  label={`Czas oszczędzania przy odkładaniu ${money(budget.upfront.monthly_contribution, currency)}/mies.`}
+                  label={`Czas oszczędzania przy odkładaniu ${money(budget.upfront.monthly_contribution, currency)}/mies.${
+                    budget.upfront.contribution_source === "CATEGORY_AVAILABLE" ? " (maksimum z kategorii)" : ""
+                  }`}
                   value={`${num(budget.upfront.months_to_goal, 1)} mies.${
                     budget.upfront.months_to_goal_full != null && !Number.isInteger(budget.upfront.months_to_goal)
                       ? ` (ok. ${budget.upfront.months_to_goal_full})`

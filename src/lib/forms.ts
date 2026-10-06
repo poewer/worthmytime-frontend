@@ -142,10 +142,6 @@ export const budgetSchema = z
     pct_FUTURE: requiredNumber("Przyszłość").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
     pct_GOALS: requiredNumber("Cele").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
     pct_FUN: requiredNumber("Przyjemności").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
-    spent_NEEDS: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
-    spent_FUTURE: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
-    spent_GOALS: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
-    spent_FUN: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
     loans: z.array(
       z.object({
         name: z.string().trim().min(1, "Podaj nazwę").max(100),
@@ -176,16 +172,11 @@ export const DEFAULT_BUDGET: BudgetPlan = {
 
 export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
   const p = b ?? DEFAULT_BUDGET;
-  const s = (c: Category) => (p.spent[c] ? String(p.spent[c]) : "");
   return {
     pct_NEEDS: String(p.percentages.NEEDS),
     pct_FUTURE: String(p.percentages.FUTURE),
     pct_GOALS: String(p.percentages.GOALS),
     pct_FUN: String(p.percentages.FUN),
-    spent_NEEDS: s("NEEDS"),
-    spent_FUTURE: s("FUTURE"),
-    spent_GOALS: s("GOALS"),
-    spent_FUN: s("FUN"),
     loans: (p.loans ?? []).map((l) => ({
       name: l.name,
       installment_amount: String(l.installment_amount),
@@ -197,7 +188,8 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
 
 export const budgetFromForm = (v: BudgetFormOut): BudgetPlan => ({
   percentages: { NEEDS: v.pct_NEEDS, FUTURE: v.pct_FUTURE, GOALS: v.pct_GOALS, FUN: v.pct_FUN },
-  spent: { NEEDS: v.spent_NEEDS ?? 0, FUTURE: v.spent_FUTURE ?? 0, GOALS: v.spent_GOALS ?? 0, FUN: v.spent_FUN ?? 0 },
+  // "wydane" w kategoriach liczy rejestr wydatków - formularz budżetu ich nie ustawia
+  spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
   loans: v.loans.map((l) => ({
     name: l.name,
     installment_amount: l.installment_amount,
