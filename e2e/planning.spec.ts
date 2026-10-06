@@ -251,3 +251,76 @@ test("cel z kategorii: maksymalna wpłata wynika z wolnych środków kategorii",
   await page.getByRole("radio", { name: "Przyjemności" }).click();
   await expect(page.getByTestId("goal-category-availability")).toContainText("Przyjemności");
 });
+test("kredyt z okresem spłaty i dniem raty: liczba rat z daty końca, najbliższa rata i postęp", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
+
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const now = new Date();
+  const start = iso(new Date(now.getFullYear(), now.getMonth() - 6, 1));
+  const end = iso(new Date(now.getFullYear(), now.getMonth() + 11, 15));
+
+  const loan = page.getByTestId("loan-0");
+  await loan.getByLabel("Nazwa").fill("Kredyt samochodowy");
+  await loan.getByLabel("Wysokość raty").fill("1000");
+  await loan.getByLabel("Dzień raty w miesiącu").fill("15");
+  await loan.getByLabel("Spłata od").fill(start);
+  await loan.getByLabel("Spłata do").fill(end);
+
+  // liczba rat wylicza się z daty końca (raty 15. dnia: 11 albo 12 w zależności od dzisiejszego dnia miesiąca)
+  await expect(loan.getByLabel("Rat do spłacenia")).toHaveAttribute("placeholder", /wyliczone: (11|12)/);
+  await expect(page.getByTestId("loan-next-0")).toContainText("Najbliższa rata: 15");
+  await expect(page.getByTestId("loan-next-0")).toContainText("ostatnia: 15");
+  await expect(loan.getByRole("progressbar", { name: "Postęp okresu spłaty" })).toBeVisible();
+  await expect(page.getByTestId("loans-total")).toContainText("1 000,00");
+
+  // dzień raty poza zakresem i koniec przed początkiem -> błędy przy polach
+  await loan.getByLabel("Dzień raty w miesiącu").fill("40");
+  await loan.getByLabel("Spłata do").fill(iso(new Date(now.getFullYear(), now.getMonth() - 8, 1)));
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Dzień miesiąca od 1 do 31")).toBeVisible();
+  await expect(page.getByText("Koniec spłaty nie może być przed początkiem")).toBeVisible();
+
+  await loan.getByLabel("Dzień raty w miesiącu").fill("15");
+  await loan.getByLabel("Spłata do").fill(end);
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
+  expect(saved.loans[0]).toMatchObject({ payment_day: 15, start_date: start, end_date: end, installments_left: null });
+});
+
+test("kredyt spłacony (data końca w przeszłości) nie obciąża budżetu; brak raty i daty końca to błąd", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
+  const loan = page.getByTestId("loan-0");
+  await loan.getByLabel("Nazwa").fill("Stara pożyczka");
+  await loan.getByLabel("Wysokość raty").fill("500");
+
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Podaj liczbę rat albo datę końca spłaty")).toBeVisible();
+
+  await loan.getByLabel("Spłata do").fill("2020-01-15");
+  await expect(page.getByTestId("loan-summary-0")).toContainText("uznajemy za spłacony");
+  await expect(page.getByTestId("loans-total")).toHaveCount(0); // 0 zł rat - nic do pokazania
+});
+
+test("wydatki: zbliżające się raty z datą i dniem", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.addInitScript(() =>
+    window.localStorage.setItem(
+      "wmt_budget",
+      JSON.stringify({
+        percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+        spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+        loans: [{ name: "Kredyt hipoteczny", installment_amount: 2100, installments_left: 120, payment_day: 10 }],
+      }),
+    ),
+  );
+  await page.goto("/expenses");
+  const card = page.getByTestId("upcoming-installments");
+  await expect(card).toContainText("Kredyt hipoteczny");
+  await expect(card).toContainText("2 100,00");
+  await expect(card).toContainText(/za \d+ (dzień|dni)|dziś/);
+});

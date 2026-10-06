@@ -146,11 +146,25 @@ export const budgetSchema = z
       z.object({
         name: z.string().trim().min(1, "Podaj nazwę").max(100),
         installment_amount: requiredNumber("Rata").refine((n) => n > 0, "Rata musi być większa od zera"),
-        installments_left: requiredNumber("Liczba rat").refine(
-          (n) => Number.isInteger(n) && n >= 1 && n <= 600,
+        installments_left: optionalNumber.refine(
+          (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 600),
           "Liczba rat: całkowita, od 1 do 600",
         ),
         loan_amount: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+        start_date: z.string(),
+        end_date: z.string(),
+        payment_day: optionalNumber.refine(
+          (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 31),
+          "Dzień miesiąca od 1 do 31",
+        ),
+      })
+      .superRefine((l, ctx) => {
+        if (l.installments_left === null && !l.end_date) {
+          ctx.addIssue({ code: "custom", path: ["installments_left"], message: "Podaj liczbę rat albo datę końca spłaty" });
+        }
+        if (l.start_date && l.end_date && l.end_date < l.start_date) {
+          ctx.addIssue({ code: "custom", path: ["end_date"], message: "Koniec spłaty nie może być przed początkiem" });
+        }
       }),
     ),
   })
@@ -180,8 +194,12 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
     loans: (p.loans ?? []).map((l) => ({
       name: l.name,
       installment_amount: String(l.installment_amount),
-      installments_left: String(l.installments_left),
+      // z datą końca liczba rat jest wyliczana na bieżąco - nie wpisujemy zapisanej migawki do formularza
+      installments_left: l.installments_left && !l.end_date ? String(l.installments_left) : "",
       loan_amount: l.loan_amount ? String(l.loan_amount) : "",
+      start_date: l.start_date ?? "",
+      end_date: l.end_date ?? "",
+      payment_day: l.payment_day ? String(l.payment_day) : "",
     })),
   };
 };
@@ -195,6 +213,9 @@ export const budgetFromForm = (v: BudgetFormOut): BudgetPlan => ({
     installment_amount: l.installment_amount,
     installments_left: l.installments_left,
     loan_amount: l.loan_amount,
+    start_date: l.start_date || null,
+    end_date: l.end_date || null,
+    payment_day: l.payment_day,
   })),
 });
 
