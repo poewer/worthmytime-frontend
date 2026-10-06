@@ -3,12 +3,12 @@ import { z } from "zod";
 import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type Profile } from "./api";
 
 /** Pole liczbowe z inputu tekstowego: "" -> null, przecinek dziesiętny dozwolony. */
-const optionalNumber = z
+export const optionalNumber = z
   .string()
   .transform((s) => (s.trim() === "" ? null : Number(s.replace(",", "."))))
   .refine((n) => n === null || Number.isFinite(n), "Podaj liczbę");
 
-const requiredNumber = (label: string) =>
+export const requiredNumber = (label: string) =>
   z
     .string()
     .transform((s) => (s.trim() === "" ? NaN : Number(s.replace(",", "."))))
@@ -24,6 +24,9 @@ export const profileSchema = z
     hourly_rate: optionalNumber.refine((n) => n === null || n > 0, "Musi być większe od zera"),
     hours_per_day: requiredNumber("Godziny").refine((n) => n > 0 && n <= 24, "Od 0,5 do 24 godzin"),
     days_per_week: requiredNumber("Dni").refine((n) => n > 0 && n <= 7, "Od 1 do 7 dni"),
+    commute_minutes_per_day: optionalNumber.refine((n) => n === null || (n >= 0 && n <= 600), "Od 0 do 600 minut"),
+    work_costs_monthly: optionalNumber.refine((n) => n === null || n >= 0, "Nie mogą być ujemne"),
+    rate_mode: z.enum(["NOMINAL", "REAL"]),
   })
   .superRefine((v, ctx) => {
     if (v.monthly_income === null && v.hourly_rate === null) {
@@ -40,6 +43,9 @@ export const profileToForm = (p: Profile | null): ProfileFormIn => ({
   hourly_rate: p?.hourly_rate?.toString() ?? "",
   hours_per_day: String(p?.hours_per_day ?? 8),
   days_per_week: String(p?.days_per_week ?? 5),
+  commute_minutes_per_day: p?.commute_minutes_per_day ? String(p.commute_minutes_per_day) : "",
+  work_costs_monthly: p?.work_costs_monthly ? String(p.work_costs_monthly) : "",
+  rate_mode: p?.rate_mode ?? "NOMINAL",
 });
 
 export const profileFromForm = (v: ProfileFormOut): Profile => ({
@@ -48,6 +54,9 @@ export const profileFromForm = (v: ProfileFormOut): Profile => ({
   hourly_rate: v.hourly_rate,
   hours_per_day: v.hours_per_day,
   days_per_week: v.days_per_week,
+  commute_minutes_per_day: v.commute_minutes_per_day ?? 0,
+  work_costs_monthly: v.work_costs_monthly ?? 0,
+  rate_mode: v.rate_mode,
 });
 
 export const BUDGET_CATEGORIES = ["NEEDS", "FUTURE", "GOALS", "FUN"] as const satisfies readonly Category[];
@@ -59,6 +68,7 @@ export const calculationSchema = z
     purchase_price: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
     ownership_years: optionalNumber.refine((n) => n === null || (n > 0 && n <= 100), "Od 0,1 do 100 lat"),
     resale_value: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+    expected_uses: optionalNumber.refine((n) => n === null || (Number.isInteger(n) && n >= 1), "Liczba całkowita od 1"),
     category: z.enum(["", ...BUDGET_CATEGORIES]),
     already_saved: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
     monthly_contribution: optionalNumber.refine((n) => n === null || n > 0, "Musi być większa od zera"),
@@ -91,6 +101,7 @@ export const emptyCalcForm = (type: CalcType = "SIMPLE", name = ""): CalcFormIn 
   purchase_price: "",
   ownership_years: type === "TCO" ? "5" : "",
   resale_value: "",
+  expected_uses: "",
   category: "",
   already_saved: "",
   monthly_contribution: "",
@@ -103,6 +114,7 @@ export const calcToForm = (c: CalculationIn): CalcFormIn => ({
   purchase_price: c.purchase_price ? String(c.purchase_price) : "",
   ownership_years: c.ownership_years != null ? String(c.ownership_years) : "",
   resale_value: c.resale_value ? String(c.resale_value) : "",
+  expected_uses: c.expected_uses ? String(c.expected_uses) : "",
   category: c.category ?? "",
   already_saved: c.already_saved ? String(c.already_saved) : "",
   monthly_contribution: c.monthly_contribution ? String(c.monthly_contribution) : "",
@@ -116,6 +128,7 @@ export const calcFromForm = (v: CalcFormOut): CalculationIn => ({
   ownership_years: v.type === "RECURRING" ? null : v.ownership_years,
   resale_value: v.type === "TCO" ? (v.resale_value ?? 0) : 0,
   costs: v.type === "SIMPLE" ? [] : v.costs,
+  expected_uses: v.type === "RECURRING" ? null : v.expected_uses,
   category: v.category || null,
   already_saved: v.category && v.type !== "RECURRING" ? (v.already_saved ?? 0) : 0,
   monthly_contribution: v.category && v.type !== "RECURRING" ? v.monthly_contribution : null,

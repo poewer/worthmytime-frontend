@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SaveIcon, Settings2Icon } from "lucide-react";
+import { HeartIcon, SaveIcon, Settings2Icon, TargetIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -12,10 +12,12 @@ import CalculationFields from "@/components/CalculationFields";
 import OnboardingCard from "@/components/OnboardingCard";
 import ResultView from "@/components/ResultView";
 import ShareControl from "@/components/ShareControl";
+import WhatIfCard from "@/components/WhatIfCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Result, type SavedCalculation } from "@/lib/api";
+import { api, type CalculationIn, type Result, type SavedCalculation } from "@/lib/api";
+import { effectiveRate } from "@/lib/rates";
 import { money } from "@/lib/format";
 import {
   applyServerErrors,
@@ -48,6 +50,7 @@ function Calculator() {
   const [result, setResult] = useState<(Result & { currency?: string }) | null>(null);
   const [saved, setSaved] = useState<SavedCalculation | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lastCalc, setLastCalc] = useState<CalculationIn | null>(null);
 
   useEffect(() => {
     if (!editId || !loggedIn) return;
@@ -55,6 +58,7 @@ function Calculator() {
       .then((s) => {
         form.reset(calcToForm(s.input));
         setSaved(s);
+        setLastCalc(s.input);
         setResult({ ...s.result, currency: s.currency });
       })
       .catch((e) => toast.error(errorMessage(e, "Nie udało się wczytać obliczenia")));
@@ -64,10 +68,7 @@ function Calculator() {
   if (!profile) return <OnboardingCard />;
 
   const currency = profile.currency;
-  const rate =
-    profile.effective_hourly_rate ??
-    profile.hourly_rate ??
-    (profile.monthly_income ? profile.monthly_income / ((profile.hours_per_day * profile.days_per_week * 52) / 12) : null);
+  const rate = profile.effective_hourly_rate ?? effectiveRate(profile);
 
   function showResult() {
     // na telefonie wynik jest pod formularzem - przewiń do niego
@@ -81,15 +82,45 @@ function Calculator() {
   async function run(values: CalcFormOut) {
     setBusy(true);
     try {
+      const calculation = calcFromForm(values);
       const res = await api<Result>("/calculate", {
-        body: { profile: profileForRequest, budget: budgetForRequest, calculation: calcFromForm(values) },
+        body: { profile: profileForRequest, budget: budgetForRequest, calculation },
       });
+      setLastCalc(calculation);
       setResult(res);
       showResult();
     } catch (e) {
       if (!applyServerErrors(e, form.setError)) toast.error(errorMessage(e, "Błąd obliczeń"));
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Cena do listy życzeń i celu: część jednorazowa zakupu (bez kosztów utrzymania). */
+  async function addToWishlist() {
+    if (!lastCalc || !(lastCalc.purchase_price > 0)) return;
+    try {
+      await api("/wishlist", { body: { name: lastCalc.name, price: lastCalc.purchase_price, category: lastCalc.category ?? null } });
+      toast.success("Dodano do listy życzeń - zdecyduj po okresie ostygnięcia");
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się dodać do listy życzeń"));
+    }
+  }
+
+  async function saveAsGoal() {
+    if (!lastCalc || !(lastCalc.purchase_price > 0)) return;
+    try {
+      await api("/goals", {
+        body: {
+          name: lastCalc.name,
+          target_amount: lastCalc.purchase_price,
+          saved_amount: lastCalc.already_saved ?? 0,
+          monthly_contribution: lastCalc.monthly_contribution ?? null,
+        },
+      });
+      toast.success("Zapisano jako cel oszczędnościowy");
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się zapisać celu"));
     }
   }
 
@@ -149,6 +180,16 @@ function Calculator() {
                 {loggedIn ? (
                   <>
                     <div className="flex flex-wrap gap-2">
+                      {lastCalc && lastCalc.type !== "RECURRING" && lastCalc.purchase_price > 0 && (
+                        <>
+                          <Button variant="outline" className="h-11" onClick={addToWishlist}>
+                            <HeartIcon /> Dodaj do listy życzeń
+                          </Button>
+                          <Button variant="outline" className="h-11" onClick={saveAsGoal}>
+                            <TargetIcon /> Zapisz jako cel
+                          </Button>
+                        </>
+                      )}
                       <Button className="h-11" onClick={save} disabled={busy}>
                         <SaveIcon /> {saved ? "Zapisz zmiany" : "Zapisz w historii"}
                       </Button>
@@ -171,6 +212,7 @@ function Calculator() {
                 )}
               </CardContent>
             </Card>
+            {lastCalc && <WhatIfCard profile={profile} calculation={lastCalc} base={result} />}
           </>
         ) : (
           <Card className="hidden border-dashed bg-transparent shadow-none lg:block">

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ResultView from "@/components/ResultView";
+import ShareActions from "@/components/ShareActions";
 import { buttonVariants } from "@/components/ui/button";
 import type { Result } from "@/lib/api";
 import { money, num } from "@/lib/format";
@@ -32,6 +33,7 @@ export default async function SharedPage({ params }: PageProps<"/s/[publicId]">)
     <div className="mx-auto grid max-w-lg gap-5">
       <p className="text-center text-sm text-muted-foreground">Ktoś udostępnił Ci wynik z WorthMyTime</p>
       <ResultView result={data.result} currency={data.currency} />
+      <ShareActions publicId={publicId} title={`${data.result.name}: ${num(data.result.work.hours, 1)} h pracy`} />
       <div className="grid justify-items-center gap-2 text-center">
         <p className="text-sm text-muted-foreground">Sprawdź, ile Ciebie kosztuje Twój następny zakup.</p>
         <Link href="/calculator" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>

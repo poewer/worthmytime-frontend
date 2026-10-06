@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, getToken, setToken, type BudgetPlan, type BudgetState, type Profile } from "@/lib/api";
+import { api, getToken, setToken, type BudgetPlan, type BudgetState, type Expense, type Profile } from "@/lib/api";
+import { effectivePlan, periodOf, readLocalLedger, writeLocalLedger } from "@/lib/ledger";
 
 const LOCAL_PROFILE_KEY = "wmt_profile";
 const LOCAL_BUDGET_KEY = "wmt_budget";
@@ -20,6 +21,9 @@ interface Ctx {
   /** Budżet do wysłania w żądaniu bezstanowym; zalogowany używa budżetu z serwera. */
   budgetForRequest: BudgetPlan | undefined;
   saveBudget: (b: BudgetPlan) => Promise<void>;
+  /** Rejestr wydatków anonimowego użytkownika (zalogowany używa API). */
+  localLedger: Expense[];
+  setLocalLedger: (items: Expense[]) => void;
   saveProfile: (p: Profile) => Promise<void>;
   login: (email: string, password: string, register?: boolean) => Promise<void>;
   logout: () => void;
@@ -38,8 +42,13 @@ const hasRate = (p: Profile | null) => !!p && (p.monthly_income != null || p.hou
 function readLocalBudget(): BudgetPlan | null {
   try {
     const raw = window.localStorage.getItem(LOCAL_BUDGET_KEY);
-    // starsze zapisy z przeglądarki nie mają kredytów
-    return raw ? { loans: [], ...JSON.parse(raw) } : null;
+    if (!raw) return null;
+    // starsze zapisy z przeglądarki nie mają kredytów; ręczne "wydane" z poprzednich miesięcy wygasają
+    const stored = { loans: [], ...JSON.parse(raw) };
+    if (stored.spent_period && stored.spent_period !== periodOf()) {
+      stored.spent = { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 };
+    }
+    return stored;
   } catch {
     return null;
   }
@@ -48,11 +57,25 @@ function readLocalBudget(): BudgetPlan | null {
 const toPlan = (b: BudgetState): BudgetPlan | null =>
   b.is_custom || b.loans.length > 0 ? { percentages: b.percentages, spent: b.spent, loans: b.loans } : null;
 
+const LOCAL_BUDGET_PERIOD = "spent_period";
+
 export function effectiveMonthlyIncome(p: Profile | null): number | null {
   if (!p) return null;
   const hoursPerMonth = (p.hours_per_day * p.days_per_week * 52) / 12;
   if (p.hourly_rate != null) return p.hourly_rate * hoursPerMonth;
   return p.monthly_income ?? null;
+}
+
+/** Plan dla żądania anonimowego: ręczne "wydane" z bieżącego miesiąca + rejestr; bez budżetu, ale z rejestrem, też jest wysyłany. */
+function anonymousPlan(budget: BudgetPlan | null, ledger: Expense[]): BudgetPlan | undefined {
+  let raw: (BudgetPlan & { spent_period?: string }) | null = budget;
+  try {
+    const stored = window.localStorage.getItem(LOCAL_BUDGET_KEY);
+    if (budget && stored) raw = { ...budget, spent_period: JSON.parse(stored)[LOCAL_BUDGET_PERIOD] };
+  } catch {}
+  if (!raw && ledger.length === 0) return undefined;
+  const base = raw ?? { percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 }, spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 }, loans: [] };
+  return effectivePlan(base, ledger);
 }
 
 function readLocalProfile(): Profile | null {
@@ -69,6 +92,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [budget, setBudget] = useState<BudgetPlan | null>(null);
+  const [localLedger, setLocalLedgerState] = useState<Expense[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -85,6 +109,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       }
       setProfile(readLocalProfile());
       setBudget(readLocalBudget());
+      setLocalLedgerState(readLocalLedger());
     })().finally(() => setReady(true));
   }, []);
 
@@ -105,7 +130,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       if (email) {
         setBudget(toPlan(await api<BudgetState>("/budget", { method: "PUT", body: b })));
       } else {
-        window.localStorage.setItem(LOCAL_BUDGET_KEY, JSON.stringify(b));
+        // zapamiętujemy miesiąc, którego dotyczą ręczne kwoty "wydane" (po zmianie miesiąca wygasają)
+        window.localStorage.setItem(LOCAL_BUDGET_KEY, JSON.stringify({ ...b, [LOCAL_BUDGET_PERIOD]: periodOf() }));
         setBudget(b);
       }
     },
@@ -138,6 +164,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     } catch {}
   }, []);
 
+  const setLocalLedger = useCallback((items: Expense[]) => {
+    writeLocalLedger(items);
+    setLocalLedgerState(items);
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     setEmail(null);
@@ -154,13 +185,15 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       profileForRequest: email ? undefined : (profile ?? undefined),
       monthlyIncome: effectiveMonthlyIncome(profile),
       budget,
-      budgetForRequest: email ? undefined : (budget ?? undefined),
+      budgetForRequest: email ? undefined : anonymousPlan(budget, localLedger),
+      localLedger,
+      setLocalLedger,
       saveBudget,
       saveProfile,
       login,
       logout,
     }),
-    [ready, email, profile, budget, saveProfile, saveBudget, login, logout],
+    [ready, email, profile, budget, localLedger, setLocalLedger, saveProfile, saveBudget, login, logout],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
