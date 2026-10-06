@@ -8,8 +8,12 @@ export type Category = "NEEDS" | "FUTURE" | "GOALS" | "FUN";
 export interface LoanIn {
   name: string;
   installment_amount: number;
-  installments_left: number;
+  /** Liczba rat do spłacenia; pomijana, gdy podano datę końca (wtedy liczy się sama). */
+  installments_left?: number | null;
   loan_amount?: number | null;
+  start_date?: string | null; // YYYY-MM-DD, początek okresu spłaty
+  end_date?: string | null; // YYYY-MM-DD, koniec okresu spłaty
+  payment_day?: number | null; // dzień miesiąca, w którym przypada rata (1-31)
 }
 
 /** Plan budżetu: procenty kategorii (suma 100), wydatki w bieżącym miesiącu i kredyty. */

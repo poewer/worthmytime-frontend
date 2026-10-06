@@ -275,7 +275,9 @@ test("kredyty i pożyczki: raty, liczba rat i koszt w czasie pracy; plan trafia 
   await expect(page.getByText("Budżet zapisany")).toBeVisible();
 
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
-  expect(saved.loans).toEqual([{ name: "Kredyt gotówkowy", installment_amount: 800, installments_left: 36, loan_amount: 40000 }]);
+  expect(saved.loans).toEqual([
+    { name: "Kredyt gotówkowy", installment_amount: 800, installments_left: 36, loan_amount: 40000, start_date: null, end_date: null, payment_day: null },
+  ]);
 });
 
 test("karta budżetu pokazuje raty kredytów i ostrzeżenie, gdy zjadają budżet Potrzeb", async ({ page }) => {

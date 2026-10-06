@@ -19,6 +19,7 @@ import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { todayIso } from "@/lib/ledger";
+import { dateLabel, nextInstallment } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,11 @@ export default function ExpensesPage() {
   const currency = profile.currency;
   const loansTotal = (budget?.loans ?? []).reduce((s, l) => s + l.installment_amount, 0);
   const percentages = budget?.percentages ?? { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 };
+  // najbliższe raty kredytów (w ciągu 31 dni), od najwcześniejszej
+  const upcoming = (budget?.loans ?? [])
+    .map((l) => ({ loan: l, next: nextInstallment(l) }))
+    .filter((x): x is { loan: (typeof x)["loan"]; next: NonNullable<(typeof x)["next"]> } => x.next != null && x.next.inDays <= 31)
+    .sort((a, b) => a.next.date.getTime() - b.next.date.getTime())
 
   // budżet, wydane (ręcznie + rejestr + raty w Potrzebach) per kategoria
   const rows = BUDGET_CATEGORIES.map((c) => {
@@ -168,6 +174,30 @@ export default function ExpensesPage() {
           ))}
         </CardContent>
       </Card>
+
+      {upcoming.length > 0 && (
+        <Card size="sm" data-testid="upcoming-installments">
+          <CardHeader>
+            <CardTitle className="text-base">Zbliżające się raty</CardTitle>
+            <CardDescription>Raty kredytów i pożyczek w najbliższych tygodniach (liczą się do Potrzeb)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm">
+              {upcoming.map(({ loan, next }, i) => (
+                <li key={`${loan.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{loan.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums font-semibold">{money(loan.installment_amount, currency)}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
