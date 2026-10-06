@@ -34,6 +34,11 @@ export function warningText(w: BudgetWarning, currency: string): { title: string
         title: "Plan wydatków przekracza dochód",
         body: `Razem z tym wydatkiem zaplanowane wydatki (${m("planned_expenses")}) są wyższe niż miesięczny dochód (${m("monthly_income")}) o ${m("deficit")}.`,
       };
+    case "LOANS_EXCEED_NEEDS_BUDGET":
+      return {
+        title: "Raty kredytów zjadają cały budżet Potrzeb",
+        body: `Same raty (${m("monthly_loans")} miesięcznie) są wyższe niż budżet kategorii Potrzeby (${m("needs_budget")}) o ${m("overrun")}. Na pozostałe potrzeby i nowe wydatki zabraknie środków.`,
+      };
     case "HIGHER_PRIORITY_AT_RISK":
       return {
         title: "Sięgnięcie po środki z ważniejszych kategorii",
@@ -106,6 +111,18 @@ export default function BudgetCard({ budget, currency = "PLN" }: { budget: Budge
         {budget.fits_budget && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldCheckIcon className="size-4 text-primary" aria-hidden /> Mieści się w budżecie tej kategorii (przy Twoich założeniach).
+          </p>
+        )}
+
+        {budget.obligations && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm" data-testid="obligations">
+            Raty kredytów i pożyczek:{" "}
+            <b className="tabular-nums">{money(budget.obligations.monthly_installments, currency)}</b> miesięcznie (
+            {pct(budget.obligations.income_percent)} dochodu), ostatnia rata za {budget.obligations.last_installment_in_months}{" "}
+            mies.
+            {budget.obligations.included_in_category
+              ? " Są już wliczone w wydane w tej kategorii."
+              : " Liczą się do Potrzeb, więc wpływają na ogólny bilans miesiąca."}
           </p>
         )}
 

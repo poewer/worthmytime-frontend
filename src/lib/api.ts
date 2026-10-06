@@ -4,13 +4,25 @@ export type Frequency = "ONE_TIME" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 export type CalcType = "SIMPLE" | "RECURRING" | "TCO";
 export type Category = "NEEDS" | "FUTURE" | "GOALS" | "FUN";
 
-/** Plan budżetu: procenty kategorii (suma 100) i wydatki w bieżącym miesiącu. */
+/** Kredyt lub pożyczka w trakcie spłaty. Rata liczy się automatycznie do kategorii NEEDS. */
+export interface LoanIn {
+  name: string;
+  installment_amount: number;
+  installments_left: number;
+  loan_amount?: number | null;
+}
+
+/** Plan budżetu: procenty kategorii (suma 100), wydatki w bieżącym miesiącu i kredyty. */
 export interface BudgetPlan {
   percentages: Record<Category, number>;
   spent: Record<Category, number>;
+  loans: LoanIn[];
 }
 
 export interface BudgetState extends BudgetPlan {
+  monthly_loans: number;
+  loans_income_percent: number | null;
+  last_installment_in_months: number;
   amounts: Record<Category, number> | null;
   available: Record<Category, number> | null;
   monthly_income: number | null;
@@ -26,6 +38,7 @@ export interface BudgetWarning {
     | "MONTHLY_COST_EXCEEDS_AVAILABLE"
     | "CATEGORY_BUDGET_TIGHT"
     | "BUDGET_DEFICIT"
+    | "LOANS_EXCEED_NEEDS_BUDGET"
     | "HIGHER_PRIORITY_AT_RISK"
     | "NO_BUDGET_DATA";
   level: WarningLevel;
@@ -42,6 +55,14 @@ export interface BudgetAnalysis {
   usage_percent: number | null;
   is_custom: boolean;
   fits_budget: boolean;
+  /** Raty kredytów i pożyczek (wymagalne zobowiązania); null gdy brak kredytów. */
+  obligations: {
+    monthly_installments: number;
+    loans_count: number;
+    income_percent: number | null;
+    last_installment_in_months: number;
+    included_in_category: boolean;
+  } | null;
   upfront: {
     cost: number;
     projected_spent: number;

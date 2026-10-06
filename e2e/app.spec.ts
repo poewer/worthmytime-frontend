@@ -246,6 +246,63 @@ test("strona budżetu: walidacja sumy 100% i zapis planu", async ({ page }) => {
   expect(saved.spent.FUN).toBe(400);
 });
 
+test("kredyty i pożyczki: raty, liczba rat i koszt w czasie pracy; plan trafia do localStorage", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/budget");
+  await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
+
+  const loan = page.getByTestId("loan-0");
+  await loan.getByLabel("Nazwa").fill("Kredyt gotówkowy");
+  await loan.getByLabel("Wysokość raty").fill("800");
+  await loan.getByLabel("Rat do spłacenia").fill("36");
+  await loan.getByLabel("Kwota kredytu").fill("40000");
+
+  // 800 x 36 = 28 800 zł do spłaty; przy 40,38 zł/h (dochód 7 000 zł) to 713 h pracy
+  await expect(page.getByTestId("loan-summary-0")).toContainText("28 800,00");
+  await expect(page.getByTestId("loan-summary-0")).toContainText("713 h");
+  await expect(page.getByTestId("loans-total")).toContainText("800,00");
+
+  // raty zmniejszają dostępny budżet Potrzeb: 3 500 - 800 = 2 700
+  await expect(page.getByTestId("budget-NEEDS")).toContainText("2 700,00");
+
+  // niepoprawna liczba rat -> błąd przy polu
+  await loan.getByLabel("Rat do spłacenia").fill("0");
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Liczba rat: całkowita, od 1 do 600")).toBeVisible();
+  await loan.getByLabel("Rat do spłacenia").fill("36");
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+
+  const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
+  expect(saved.loans).toEqual([{ name: "Kredyt gotówkowy", installment_amount: 800, installments_left: 36, loan_amount: 40000 }]);
+});
+
+test("karta budżetu pokazuje raty kredytów i ostrzeżenie, gdy zjadają budżet Potrzeb", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.route("**/api/v1/calculate", (r) =>
+    json(r, {
+      ...RESULT,
+      budget: {
+        ...BUDGET_EXCEEDED,
+        category: "NEEDS",
+        priority: "P0",
+        fits_budget: true,
+        obligations: { monthly_installments: 4200, loans_count: 2, income_percent: 60, last_installment_in_months: 36, included_in_category: true },
+        warnings: [{ code: "LOANS_EXCEED_NEEDS_BUDGET", level: "critical", params: { monthly_loans: 4200, needs_budget: 3500, overrun: 700 } }],
+      },
+    }),
+  );
+  await page.goto("/calculator");
+  await page.getByLabel("Co chcesz kupić?").fill("Lodówka");
+  await page.getByLabel("Cena").fill("1000");
+  await page.getByRole("radio", { name: "Potrzeby" }).click();
+  await page.getByRole("button", { name: "Oblicz" }).click();
+  await expect(page.getByTestId("obligations")).toContainText("4 200,00");
+  await expect(page.getByTestId("obligations")).toContainText("ostatnia rata za 36 mies.");
+  await expect(page.getByTestId("warning-LOANS_EXCEED_NEEDS_BUDGET")).toContainText("Raty kredytów zjadają cały budżet Potrzeb");
+  await expect(page.getByTestId("warning-LOANS_EXCEED_NEEDS_BUDGET")).toHaveAttribute("data-level", "critical");
+});
+
 test("historia: znacznik poza budżetem", async ({ page }) => {
   await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
   await page.route("**/api/v1/budget", (r) => json(r, { ...BUDGET_PLAN, is_custom: false, amounts: null, available: null, monthly_income: null, total_spent: 0 }));

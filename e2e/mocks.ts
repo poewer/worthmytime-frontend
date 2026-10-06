@@ -63,6 +63,7 @@ export const BUDGET_EXCEEDED = {
     already_saved: 0,
     income_percent: 25,
   },
+  obligations: null,
   monthly: null,
   warnings: [
     {
@@ -77,6 +78,7 @@ export const BUDGET_EXCEEDED = {
 export const BUDGET_PLAN = {
   percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
   spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 400 },
+  loans: [] as { name: string; installment_amount: number; installments_left: number; loan_amount?: number | null }[],
 };
 
 export async function withLocalBudget(page: Page) {
