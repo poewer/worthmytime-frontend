@@ -116,6 +116,7 @@ function Calculator() {
           target_amount: lastCalc.purchase_price,
           saved_amount: lastCalc.already_saved ?? 0,
           monthly_contribution: lastCalc.monthly_contribution ?? null,
+          category: lastCalc.category ?? null,
         },
       });
       toast.success("Zapisano jako cel oszczędnościowy");

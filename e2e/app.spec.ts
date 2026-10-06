@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BUDGET_EXCEEDED, BUDGET_PLAN, json, PROFILE, RESULT, SAVED, withLocalBudget, withLocalProfile } from "./mocks";
+import { BUDGET_EXCEEDED, BUDGET_PLAN, json, PROFILE, RESULT, SAVED, withLocalBudget, withLocalLedger, withLocalProfile } from "./mocks";
 
 test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   await page.route("**/api/v1/calculate", (r) => json(r, RESULT));
@@ -174,6 +174,7 @@ test("nawigacja i brak poziomego przewijania", async ({ page, isMobile }) => {
 test("kategoria budżetu: wysyła plan do API i ostrzega, że zakup może się nie mieścić", async ({ page }) => {
   await withLocalProfile(page);
   await withLocalBudget(page);
+  await withLocalLedger(page, [{ category: "FUN", amount: 400 }]); // wydane liczy rejestr wydatków
   let sent: { budget?: typeof BUDGET_PLAN; calculation: { category: string; already_saved: number } } | undefined;
   await page.route("**/api/v1/calculate", (r) => {
     sent = r.request().postDataJSON();
@@ -237,13 +238,13 @@ test("strona budżetu: walidacja sumy 100% i zapis planu", async ({ page }) => {
   await expect(page.getByText("Procenty muszą sumować się do 100")).toBeVisible();
 
   await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("40");
-  await page.getByTestId("budget-FUN").getByLabel("Wydane w tym miesiącu").fill("400");
+  // "wydane" nie jest już polem budżetu - liczy je rejestr wydatków
+  await expect(page.getByTestId("budget-FUN").getByLabel("Wydane w tym miesiącu")).toHaveCount(0);
   await page.getByRole("button", { name: "Zapisz budżet" }).click();
   await expect(page.getByText("Budżet zapisany")).toBeVisible();
 
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
   expect(saved.percentages).toEqual({ NEEDS: 40, FUTURE: 25, GOALS: 15, FUN: 20 });
-  expect(saved.spent.FUN).toBe(400);
 });
 
 test("kredyty i pożyczki: raty, liczba rat i koszt w czasie pracy; plan trafia do localStorage", async ({ page }) => {

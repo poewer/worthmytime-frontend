@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2Icon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type SavingsGoal } from "@/lib/api";
 import { money, num } from "@/lib/format";
-import { errorMessage, optionalNumber, requiredNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber } from "@/lib/forms";
+import { CATEGORY_INFO } from "@/lib/format";
+import { useCategoryAvailability } from "@/lib/use-availability";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -26,6 +28,7 @@ const schema = z.object({
   saved_amount: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
   monthly_contribution: optionalNumber.refine((n) => n === null || n > 0, "Musi być większa od zera"),
   target_date: z.string(),
+  category: z.enum(["", ...BUDGET_CATEGORIES]),
 });
 type FormIn = z.input<typeof schema>;
 type FormOut = z.output<typeof schema>;
@@ -38,14 +41,19 @@ export default function GoalsPage() {
   const [currency, setCurrency] = useState("PLN");
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", target_amount: "", saved_amount: "", monthly_contribution: "", target_date: "" },
+    defaultValues: { name: "", target_amount: "", saved_amount: "", monthly_contribution: "", target_date: "", category: "" },
   });
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    control,
     formState: { errors, isSubmitting },
   } = form;
+  const availability = useCategoryAvailability();
+  const category = useWatch({ control, name: "category" });
+  const free = category && availability ? Math.max(availability[category], 0) : null;
 
   const load = useCallback(
     () =>
@@ -75,6 +83,7 @@ export default function GoalsPage() {
           saved_amount: v.saved_amount ?? 0,
           monthly_contribution: v.monthly_contribution,
           target_date: v.target_date || null,
+          category: v.category || null,
         },
       });
       toast.success("Cel dodany");
@@ -108,13 +117,47 @@ export default function GoalsPage() {
               <Field label="Już odłożone" error={errors.saved_amount?.message}>
                 {(p) => <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register("saved_amount")} />}
               </Field>
-              <Field label="Miesięczna wpłata" hint="Z niej liczymy przewidywaną datę" error={errors.monthly_contribution?.message}>
+              <Field
+                label="Miesięczna wpłata"
+                hint={category ? "Zostaw puste, a przyjmiemy maksimum z kategorii" : "Z niej liczymy przewidywaną datę"}
+                error={errors.monthly_contribution?.message}
+              >
                 {(p) => <Input {...p} inputMode="decimal" placeholder="1000" className="h-11" {...register("monthly_contribution")} />}
               </Field>
               <Field label="Termin (opcjonalnie)" hint="Policzymy wymaganą wpłatę" error={errors.target_date?.message}>
                 {(p) => <Input {...p} type="date" className="h-11" {...register("target_date")} />}
               </Field>
             </div>
+            <fieldset className="grid gap-2">
+              <legend className="mb-1 text-sm font-medium">Z której kategorii budżetu odkładasz? (opcjonalnie)</legend>
+              <div role="radiogroup" aria-label="Kategoria celu" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {(["", ...BUDGET_CATEGORIES] as const).map((c) => (
+                  <button
+                    key={c || "none"}
+                    type="button"
+                    role="radio"
+                    aria-checked={category === c}
+                    onClick={() => setValue("category", c, { shouldDirty: true })}
+                    className={cn(
+                      "min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors",
+                      category === c ? "border-primary bg-primary/10" : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {c ? CATEGORY_INFO[c].label : "Bez kategorii"}
+                  </button>
+                ))}
+              </div>
+              {category && free != null && (
+                <p className="rounded-xl bg-primary/10 px-3 py-2.5 text-sm" data-testid="goal-category-availability">
+                  W kategorii <b>{CATEGORY_INFO[category].label}</b> zostało w tym miesiącu <b className="tabular-nums">{money(free, currency)}</b> - tyle maksymalnie możesz miesięcznie odkładać na ten cel.
+                  {free > 0 && (
+                    <button type="button" className="ml-2 font-medium text-primary underline" onClick={() => setValue("monthly_contribution", String(free), { shouldDirty: true })}>
+                      Użyj maksimum
+                    </button>
+                  )}
+                </p>
+              )}
+            </fieldset>
             <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
               Dodaj cel
             </Button>
@@ -170,6 +213,7 @@ function GoalCard({ goal: g, currency, onChange }: { goal: SavingsGoal; currency
             </p>
             <p className="text-sm text-muted-foreground tabular-nums">
               {money(g.saved_amount, currency)} z {money(g.target_amount, currency)}
+              {g.category && <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-xs">{CATEGORY_INFO[g.category].label}</span>}
             </p>
           </div>
           <Button variant="ghost" className="size-10" aria-label={`Usuń cel ${g.name}`} onClick={remove}>
@@ -194,15 +238,29 @@ function GoalCard({ goal: g, currency, onChange }: { goal: SavingsGoal; currency
         ) : (
           <dl className="grid gap-1 text-sm">
             <Row label="Zostało do odłożenia" value={`${money(g.remaining, currency)}${g.work_hours_remaining != null ? ` (${num(g.work_hours_remaining, 0)} h pracy)` : ""}`} />
+            {g.max_monthly_contribution != null && (
+              <Row
+                label={`Maks. wpłata z kategorii „${g.category ? CATEGORY_INFO[g.category].label : ""}” w tym miesiącu`}
+                value={money(g.max_monthly_contribution, currency)}
+                testId="goal-max"
+              />
+            )}
             {g.eta && (
               <Row
-                label={`Przy ${money(g.monthly_contribution ?? 0, currency)}/mies. cel osiągniesz`}
+                label={`Przy ${money(g.effective_contribution ?? 0, currency)}/mies.${g.contribution_source === "CATEGORY_AVAILABLE" ? " (maksimum)" : ""} cel osiągniesz`}
                 value={`${dateLabel(g.eta)} (${num(g.months_to_goal ?? 0, 1)} mies.)`}
                 testId="goal-eta"
               />
             )}
             {g.required_monthly != null && (
               <Row label={`Żeby zdążyć do ${g.target_date ? dateLabel(g.target_date) : "terminu"}, odkładaj`} value={`${money(g.required_monthly, currency)}/mies.`} />
+            )}
+            {g.contribution_exceeds && (
+              <div className="pt-1">
+                <Badge variant="destructive" data-testid="goal-exceeds">
+                  wpłata większa niż dostępne w kategorii
+                </Badge>
+              </div>
             )}
             {g.on_track != null && (
               <div className="pt-1">

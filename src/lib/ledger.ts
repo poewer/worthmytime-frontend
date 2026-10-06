@@ -62,14 +62,9 @@ export function writeLocalLedger(items: Expense[]) {
 }
 
 /**
- * Plan do wysłania w żądaniu bezstanowym: "wydane" = ręczna kwota z bieżącego miesiąca + suma rejestru.
- * Ręczna kwota wygasa po zmianie miesiąca (`spent_period`), tak jak na serwerze.
+ * Plan do wysłania w żądaniu bezstanowym (bez konta): "wydane" w kategoriach to wyłącznie suma rejestru
+ * wydatków z bieżącego miesiąca - tak samo liczy je serwer dla zalogowanych.
  */
-export function effectivePlan(plan: BudgetPlan & { spent_period?: string }, ledger: Expense[], now = new Date()): BudgetPlan {
-  const period = periodOf(now);
-  const manualValid = !plan.spent_period || plan.spent_period === period;
-  const fromLedger = totalsFor(ledger, period);
-  const spent = zeroTotals();
-  for (const c of CATEGORIES) spent[c] = round2((manualValid ? (plan.spent[c] ?? 0) : 0) + fromLedger[c]);
-  return { percentages: plan.percentages, spent, loans: plan.loans ?? [] };
+export function effectivePlan(plan: BudgetPlan, ledger: Expense[], now = new Date()): BudgetPlan {
+  return { percentages: plan.percentages, spent: totalsFor(ledger, periodOf(now)), loans: plan.loans ?? [] };
 }
