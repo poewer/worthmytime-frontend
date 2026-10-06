@@ -36,6 +36,11 @@ export const SAVED = {
 };
 
 /** Profil anonimowy w localStorage - pomija onboarding. */
+/** Zalogowany użytkownik: cookie sesji ustawia serwer, a przeglądarka widzi tylko znacznik `wmt_csrf` (token CSRF). */
+export async function signedIn(page: Page) {
+  await page.context().addCookies([{ name: "wmt_csrf", value: "csrf-test", domain: "localhost", path: "/" }]);
+}
+
 export async function withLocalProfile(page: Page) {
   await page.addInitScript((p) => window.localStorage.setItem("wmt_profile", JSON.stringify(p)), PROFILE);
 }

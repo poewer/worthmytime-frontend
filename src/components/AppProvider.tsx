@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, getToken, setToken, type BudgetPlan, type BudgetState, type Expense, type Profile, type RecurringExpense } from "@/lib/api";
+import { api, clearLegacyToken, hasSession, legacyToken, type BudgetPlan, type BudgetState, type Expense, type Profile, type RecurringExpense } from "@/lib/api";
 import { effectivePlan, readLocalLedger, writeLocalLedger } from "@/lib/ledger";
 import { materialize, readLocalRecurring, writeLocalRecurring } from "@/lib/recurring";
 
@@ -96,15 +96,26 @@ export default function AppProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     (async () => {
-      if (getToken()) {
+      const legacy = legacyToken();
+      if (hasSession() || legacy) {
         try {
+          if (legacy) {
+            // jednorazowa migracja: token z localStorage wymieniamy na cookie sesji i usuwamy z przeglądarki
+            try {
+              await api("/auth/session", { method: "POST", bearer: legacy });
+            } catch {
+              // wymiana się nie udała (token wygasł albo stary backend): niżej sprawdzimy, czy jest już sesja w cookie
+            } finally {
+              clearLegacyToken();
+            }
+          }
           const me = await api<{ email: string; profile: Profile }>("/auth/me");
           setEmail(me.email);
           setProfile(hasRate(me.profile) ? me.profile : null);
           setBudget(toPlan(await api<BudgetState>("/budget")));
           return;
         } catch {
-          setToken(null);
+          void api("/auth/logout", { method: "POST" }).catch(() => {}); // sesja wygasła: wyczyść stare cookie
         }
       }
       setProfile(readLocalProfile());
@@ -146,7 +157,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     const res = await api<{ token: string; profile: Profile }>(register ? "/auth/register" : "/auth/login", {
       body: { email: mail, password },
     });
-    setToken(res.token);
+    // cookie sesji ustawia serwer; token z treści odpowiedzi nigdzie nie zapisujemy
     setEmail(mail.toLowerCase());
     // konto bez profilu: przenieś profil anonimowy na serwer
     let next: Profile | null = hasRate(res.profile) ? res.profile : null;
@@ -179,7 +190,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const logout = useCallback(() => {
-    setToken(null);
+    void api("/auth/logout", { method: "POST" }).catch(() => {});
     setEmail(null);
     setProfile(readLocalProfile());
     setBudget(readLocalBudget());
