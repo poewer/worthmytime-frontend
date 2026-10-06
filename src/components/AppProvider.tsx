@@ -38,13 +38,15 @@ const hasRate = (p: Profile | null) => !!p && (p.monthly_income != null || p.hou
 function readLocalBudget(): BudgetPlan | null {
   try {
     const raw = window.localStorage.getItem(LOCAL_BUDGET_KEY);
-    return raw ? JSON.parse(raw) : null;
+    // starsze zapisy z przeglądarki nie mają kredytów
+    return raw ? { loans: [], ...JSON.parse(raw) } : null;
   } catch {
     return null;
   }
 }
 
-const toPlan = (b: BudgetState): BudgetPlan | null => (b.is_custom ? { percentages: b.percentages, spent: b.spent } : null);
+const toPlan = (b: BudgetState): BudgetPlan | null =>
+  b.is_custom || b.loans.length > 0 ? { percentages: b.percentages, spent: b.spent, loans: b.loans } : null;
 
 export function effectiveMonthlyIncome(p: Profile | null): number | null {
   if (!p) return null;

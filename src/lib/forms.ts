@@ -133,6 +133,17 @@ export const budgetSchema = z
     spent_FUTURE: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
     spent_GOALS: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
     spent_FUN: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemne"),
+    loans: z.array(
+      z.object({
+        name: z.string().trim().min(1, "Podaj nazwę").max(100),
+        installment_amount: requiredNumber("Rata").refine((n) => n > 0, "Rata musi być większa od zera"),
+        installments_left: requiredNumber("Liczba rat").refine(
+          (n) => Number.isInteger(n) && n >= 1 && n <= 600,
+          "Liczba rat: całkowita, od 1 do 600",
+        ),
+        loan_amount: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+      }),
+    ),
   })
   .superRefine((v, ctx) => {
     const sum = v.pct_NEEDS + v.pct_FUTURE + v.pct_GOALS + v.pct_FUN;
@@ -147,6 +158,7 @@ export type BudgetFormOut = z.output<typeof budgetSchema>;
 export const DEFAULT_BUDGET: BudgetPlan = {
   percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
   spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+  loans: [],
 };
 
 export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
@@ -161,12 +173,24 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
     spent_FUTURE: s("FUTURE"),
     spent_GOALS: s("GOALS"),
     spent_FUN: s("FUN"),
+    loans: (p.loans ?? []).map((l) => ({
+      name: l.name,
+      installment_amount: String(l.installment_amount),
+      installments_left: String(l.installments_left),
+      loan_amount: l.loan_amount ? String(l.loan_amount) : "",
+    })),
   };
 };
 
 export const budgetFromForm = (v: BudgetFormOut): BudgetPlan => ({
   percentages: { NEEDS: v.pct_NEEDS, FUTURE: v.pct_FUTURE, GOALS: v.pct_GOALS, FUN: v.pct_FUN },
   spent: { NEEDS: v.spent_NEEDS ?? 0, FUTURE: v.spent_FUTURE ?? 0, GOALS: v.spent_GOALS ?? 0, FUN: v.spent_FUN ?? 0 },
+  loans: v.loans.map((l) => ({
+    name: l.name,
+    installment_amount: l.installment_amount,
+    installments_left: l.installments_left,
+    loan_amount: l.loan_amount,
+  })),
 });
 
 /**
