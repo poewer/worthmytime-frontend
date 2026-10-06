@@ -9,6 +9,9 @@ import { lastPeriods, periodOf, round2, summarize, todayIso, totalsFor, zeroTota
 
 const MONTHS = 6;
 
+/** Klucz raty w rejestrze: id z serwera albo nazwa (bez konta). */
+export const loanKey = (loan: { id?: string; name: string }) => loan.id ?? `local:${loan.name}`;
+
 export interface NewExpense {
   category: Category;
   amount: number;
@@ -84,6 +87,28 @@ export function useLedger() {
     [loggedIn, reload, localLedger, setLocalLedger],
   );
 
+  /** Rata kredytu jako opłacona: wpis w Potrzebach z oznaczeniem LOAN (nie liczy się drugi raz do "wydanego"). */
+  const payLoan = useCallback(
+    async (loan: { id?: string; name: string; installment_amount: number }, paidOn: string) => {
+      if (loggedIn && loan.id) {
+        await api(`/budget/loans/${loan.id}/pay`, { body: { paid_on: paidOn } });
+        await reload();
+      } else {
+        const item: Expense = {
+          id: crypto.randomUUID(),
+          category: "NEEDS",
+          amount: loan.installment_amount,
+          note: `Rata: ${loan.name}`,
+          spent_on: paidOn,
+          source_type: "LOAN",
+          source_id: loanKey(loan),
+        };
+        setLocalLedger([item, ...localLedger]);
+      }
+    },
+    [loggedIn, reload, localLedger, setLocalLedger],
+  );
+
   const period = periodOf();
   const periods = lastPeriods(MONTHS);
   const monthItems = loggedIn
@@ -93,5 +118,6 @@ export function useLedger() {
   const trend = loggedIn ? summary : summarize(localLedger, periods);
   const total = round2(Object.values(monthTotals).reduce((s, v) => s + v, 0));
 
-  return { loading, items: monthItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, remove, period };
+  const allItems = loggedIn ? items : localLedger;
+  return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, remove, payLoan, reload, period };
 }

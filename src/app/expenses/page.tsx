@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Trash2Icon } from "lucide-react";
+import { CheckIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -11,6 +11,7 @@ import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
+import RecurringCard from "@/components/RecurringCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
@@ -20,8 +21,9 @@ import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { todayIso } from "@/lib/ledger";
-import { dateLabel, nextInstallment } from "@/lib/loans";
-import { useLedger } from "@/lib/use-ledger";
+import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
+import { loanKey, useLedger } from "@/lib/use-ledger";
+import { useRecurring } from "@/lib/use-recurring";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -47,6 +49,7 @@ const monthLabel = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleDateStrin
 export default function ExpensesPage() {
   const { ready, profile, monthlyIncome, budget, loggedIn } = useApp();
   const ledger = useLedger();
+  const recurring = useRecurring(ledger.reload);
   const [category, setCategory] = useState<Category>("FUN");
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
@@ -59,7 +62,7 @@ export default function ExpensesPage() {
     formState: { errors, isSubmitting },
   } = form;
 
-  if (!ready || ledger.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
+  if (!ready || ledger.loading || recurring.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
 
   const currency = profile.currency;
@@ -78,6 +81,10 @@ export default function ExpensesPage() {
     const spent = ledger.totals[c] + loans;
     return { c, amount, spent, usage: amount > 0 ? (spent / amount) * 100 : null, fromLedger: ledger.totals[c], fixed: loans };
   });
+
+  // rata opłacona = wpis LOAN w miesiącu jej terminu
+  const isPaid = (loan: { id?: string; name: string }, due: Date) =>
+    ledger.allItems.some((e) => e.source_type === "LOAN" && e.source_id === loanKey(loan) && e.spent_on.slice(0, 7) === isoDate(due).slice(0, 7));
 
   const selected = rows.find((r) => r.c === category);
 
@@ -206,12 +213,29 @@ export default function ExpensesPage() {
                     </span>
                   </span>
                   <span className="shrink-0 tabular-nums font-semibold">{money(loan.installment_amount, currency)}</span>
+                  {isPaid(loan, next.date) ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" data-testid={`paid-${i}`}>
+                      <CheckIcon className="size-3.5" aria-hidden /> Opłacona
+                    </span>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      aria-label={`Oznacz ratę ${loan.name} jako zapłaconą`}
+                      onClick={() => ledger.payLoan(loan, isoDate(next.date)).then(() => toast.success("Rata oznaczona jako zapłacona")).catch((err) => toast.error(errorMessage(err)))}
+                    >
+                      Zapłacona
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
           </CardContent>
         </Card>
       )}
+
+      <RecurringCard recurring={recurring} currency={currency} />
 
       <Card>
         <CardHeader>
@@ -228,6 +252,11 @@ export default function ExpensesPage() {
                     <p className="truncate text-sm font-medium">
                       {e.note || CATEGORY_INFO[e.category].label}
                       <span className="ml-2 text-xs font-normal text-muted-foreground">{CATEGORY_INFO[e.category].label}</span>
+                      {e.source_type && (
+                        <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
+                          {e.source_type === "LOAN" ? "rata" : "stały"}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
                   </div>
