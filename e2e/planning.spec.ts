@@ -56,6 +56,49 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   await expect(page.getByText("Nic jeszcze nie dopisano.")).toBeVisible();
 });
 
+test("dzienny limit i prognoza: ile na dzień, pasek dzisiejszych wydatków i ostrzeżenie o tempie", async ({ page }) => {
+  // 10 października 2026: 22 dni do końca miesiąca (z dzisiejszym), dochód 7 000 zł, Przyjemności 700 zł
+  await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
+  await withLocalProfile(page);
+  await page.goto("/expenses");
+
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await expect(page.getByTestId("form-daily-limit")).toContainText(/Zostało\s700,00\szł na 22 dni/);
+
+  await page.getByLabel("Kwota").fill("400");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("expense-list")).toBeVisible();
+
+  // zostało 300 zł na 22 dni = 13,64 zł dziennie; tempo 40 zł dziennie wyczerpie budżet za 7 dni
+  const daily = page.getByTestId("daily-FUN");
+  await expect(daily).toContainText(/Zostało\s300,00\szł na 22 dni/);
+  await expect(page.getByTestId("daily-FUN-daily")).toContainText(/13,64\szł/);
+  await expect(page.getByTestId("daily-FUN-warning")).toContainText("skończysz za 7 dni");
+
+  // pasek w formularzu: dziś wydano 400 zł z dziennego limitu 13,64 zł
+  await expect(page.getByTestId("form-daily-limit")).toContainText(/Dziś w tej kategorii: 400,00\szł z 13,64\szł/);
+
+  // ta sama informacja na stronie Budżet
+  await page.goto("/budget");
+  await expect(page.getByTestId("daily-FUN")).toContainText(/Zostało\s300,00\szł na 22 dni/);
+});
+
+test("dzienny limit: bez prognozy w pierwszych dniach miesiąca i komunikat o wyczerpanym budżecie", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-02T10:00:00")); // 2. dnia tempo jest zbyt zaszumione
+  await withLocalProfile(page);
+  await page.goto("/expenses");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await page.getByLabel("Kwota").fill("500");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("daily-FUN")).toContainText(/Zostało\s200,00\szł na 30 dni/);
+  await expect(page.getByTestId("daily-FUN-warning")).toHaveCount(0);
+
+  await page.getByLabel("Kwota").fill("300");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("daily-FUN")).toContainText("Budżet kategorii wyczerpany");
+  await expect(page.getByTestId("daily-FUN")).toHaveAttribute("data-status", "OVER");
+});
+
 test("lista życzeń: ostygnięcie, odpuszczenie i statystyka oszczędności", async ({ page }) => {
   await asLoggedIn(page);
   const work = { ...RESULT.work, hours: 61.9 };
