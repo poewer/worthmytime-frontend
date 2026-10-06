@@ -84,6 +84,8 @@ test("dzwonek (konto): lista z API, ukrycie wywołuje POST z zakodowanym kluczem
       is_custom: false,
     }),
   );
+  // zalogowany: cookie sesji (znacznik wmt_csrf); token w localStorage obsługuje starszą wersję logowania
+  await page.context().addCookies([{ name: "wmt_csrf", value: "csrf-test", domain: "localhost", path: "/" }]);
   await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
 
   let items = [
