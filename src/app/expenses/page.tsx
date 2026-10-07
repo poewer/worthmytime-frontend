@@ -246,13 +246,13 @@ export default function ExpensesPage() {
                   const loanRows = r.c === "NEEDS" ? dueLoans : [];
                   const isOpen = !!open[r.c];
                   return (
-                    <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
+                    <div key={r.c} className="grid min-w-0 gap-1.5" data-testid={`usage-${r.c}`}>
                       <button
                         type="button"
                         aria-expanded={isOpen}
                         aria-controls={`entries-${r.c}`}
                         onClick={() => setOpen((o) => ({ ...o, [r.c]: !o[r.c] }))}
-                        className="flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <span className="flex min-w-0 items-center gap-1.5 font-medium">
                           <ChevronRightIcon className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} aria-hidden />
@@ -282,12 +282,12 @@ export default function ExpensesPage() {
                       </div>
                       <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
                       {isOpen && (
-                        <div id={`entries-${r.c}`} className="mt-1 ml-2 border-l pl-3">
+                        <div id={`entries-${r.c}`} className="mt-1 ml-2 min-w-0 border-l pl-3">
                           {loanRows.length > 0 && (
                             <ul className="divide-y border-b" data-testid={`loan-rows-${r.c}`} aria-label="Raty do zapłaty">
                               {loanRows.map(({ loan, next }, i) => (
-                                <li key={`${loan.name}-${i}`} className="flex items-center gap-2 py-1.5">
-                                  <div className="min-w-0 flex-1">
+                                <li key={`${loan.name}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+                                  <div className="min-w-0 flex-1 basis-44">
                                     <p className="truncate text-sm font-medium">
                                       {loan.name}
                                       <span className="ml-2 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" data-testid="loan-row-status">
