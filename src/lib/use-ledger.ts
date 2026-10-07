@@ -10,8 +10,9 @@ import { lastPeriods, periodOf, round2, summarize, todayIso, totalsFor, zeroTota
 
 const MONTHS = 6;
 
-/** Klucz raty w rejestrze: id z serwera albo nazwa (bez konta). */
-export const loanKey = (loan: { id?: string; name: string }) => loan.id ?? `local:${loan.name}`;
+/** Klucz raty w rejestrze: id z serwera albo nazwa z kwotą raty (bez konta, żeby dwie raty o tej samej nazwie się nie myliły). */
+export const loanKey = (loan: { id?: string; name: string; installment_amount?: number }) =>
+  loan.id ?? `local:${loan.name}:${loan.installment_amount ?? ""}`;
 
 export interface NewExpense {
   category: Category;
