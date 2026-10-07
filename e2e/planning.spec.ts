@@ -73,7 +73,7 @@ test("dzienny limit i prognoza: ile na dzień, pasek dzisiejszych wydatków i os
   const daily = page.getByTestId("daily-FUN");
   await expect(daily).toContainText(/Zostało\s300,00\szł na 22 dni/);
   await expect(page.getByTestId("daily-FUN-daily")).toContainText(/13,64\szł/);
-  await expect(page.getByTestId("daily-FUN-warning")).toContainText("skończysz za 7 dni");
+  await expect(page.getByTestId("daily-FUN-warning")).toContainText("tej kwoty wystarczy na 7 dni");
 
   // pasek w formularzu: dziś wydano 400 zł z dziennego limitu 13,64 zł
   await expect(page.getByTestId("form-daily-limit")).toContainText(/Dziś w tej kategorii: 400,00\szł z 13,64\szł/);

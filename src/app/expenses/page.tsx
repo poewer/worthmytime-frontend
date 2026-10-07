@@ -102,7 +102,7 @@ export default function ExpensesPage() {
   const chart = ledger.trend.map((m) => ({ month: monthLabel(m.month), ...m.totals }));
 
   return (
-    <div className="mx-auto grid max-w-2xl gap-6">
+    <div className="mx-auto grid max-w-5xl gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Wydatki</h1>
         <p className="text-sm text-muted-foreground">
@@ -111,170 +111,188 @@ export default function ExpensesPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Dopisz wydatek</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4">
-            <div role="radiogroup" aria-label="Kategoria wydatku" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {BUDGET_CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={category === c}
-                  onClick={() => setCategory(c)}
-                  className={cn(
-                    "min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors",
-                    category === c ? "border-primary bg-primary/10" : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {CATEGORY_INFO[c].label}
-                </button>
-              ))}
-            </div>
-            {selected && (
-              <DailyLimit
-                budget={selected.amount}
-                variableSpent={selected.fromLedger}
-                fixed={selected.fixed}
-                currency={currency}
-                testId="form-daily-limit"
-                spentToday={ledger.items.filter((e) => e.category === category && e.spent_on === todayIso()).reduce((s, e) => s + e.amount, 0)}
-              />
-            )}
-            <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
-              <Field label="Kwota" error={errors.amount?.message}>
-                {(p) => <Input {...p} inputMode="decimal" placeholder="49,90" className="h-11" {...register("amount")} />}
-              </Field>
-              <Field label="Data" error={errors.spent_on?.message}>
-                {(p) => <Input {...p} type="date" className="h-11" {...register("spent_on")} />}
-              </Field>
-            </div>
-            <Field label="Notatka (opcjonalnie)" error={errors.note?.message}>
-              {(p) => <Input {...p} placeholder="np. kino" className="h-11" {...register("note")} />}
-            </Field>
-            <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
-              Dopisz wydatek
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Ten miesiąc</CardTitle>
-          <CardDescription>Wydane łącznie z rejestru: {money(ledger.total, currency)}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          {rows.map((r) => (
-            <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
-              <div className="flex justify-between gap-2 text-sm">
-                <span className="font-medium">{CATEGORY_INFO[r.c].label}</span>
-                <span className={cn("tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
-                  {money(r.spent, currency)} / {money(r.amount, currency)}
-                  {r.usage != null && ` (${num(r.usage, 0)}%)`}
-                </span>
-              </div>
-              <div
-                role="progressbar"
-                aria-label={`Wykorzystanie budżetu: ${CATEGORY_INFO[r.c].label}`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.min(100, Math.round(r.usage ?? 0))}
-                className="h-2 overflow-hidden rounded-full bg-muted"
-              >
-                <div
-                  className={cn("h-full rounded-full", r.usage != null && r.usage > 100 ? "bg-destructive" : "bg-primary")}
-                  style={{ width: `${Math.min(100, r.usage ?? 0)}%` }}
-                />
-              </div>
-              <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {upcoming.length > 0 && (
-        <Card size="sm" data-testid="upcoming-installments">
-          <CardHeader>
-            <CardTitle className="text-base">Zbliżające się raty</CardTitle>
-            <CardDescription>Raty kredytów i pożyczek w najbliższych tygodniach (liczą się do Potrzeb)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y text-sm">
-              {upcoming.map(({ loan, next }, i) => (
-                <li key={`${loan.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{loan.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
-                    </span>
-                  </span>
-                  <span className="shrink-0 tabular-nums font-semibold">{money(loan.installment_amount, currency)}</span>
-                  {isPaid(loan, next.date) ? (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" data-testid={`paid-${i}`}>
-                      <CheckIcon className="size-3.5" aria-hidden /> Opłacona
-                    </span>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      aria-label={`Oznacz ratę ${loan.name} jako zapłaconą`}
-                      onClick={() => ledger.payLoan(loan, isoDate(next.date)).then(() => toast.success("Rata oznaczona jako zapłacona")).catch((err) => toast.error(errorMessage(err)))}
-                    >
-                      Zapłacona
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      <RecurringCard recurring={recurring} currency={currency} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Wpisy z tego miesiąca</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {ledger.items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nic jeszcze nie dopisano.</p>
-          ) : (
-            <ul className="divide-y" data-testid="expense-list">
-              {ledger.items.map((e) => (
-                <li key={e.id} className="flex items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {e.note || CATEGORY_INFO[e.category].label}
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">{CATEGORY_INFO[e.category].label}</span>
-                      {e.source_type && (
-                        <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
-                          {e.source_type === "LOAN" ? "rata" : "stały"}
-                        </span>
+      {/* komputer: dwie kolumny (dodawanie po lewej, podsumowanie i wpisy po prawej); telefon: jedna kolumna w kolejności order */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="contents lg:grid lg:content-start lg:gap-6">
+          <div className="order-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Dopisz wydatek</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4">
+                <div role="radiogroup" aria-label="Kategoria wydatku" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {BUDGET_CATEGORIES.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      role="radio"
+                      aria-checked={category === c}
+                      onClick={() => setCategory(c)}
+                      className={cn(
+                        "min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors",
+                        category === c ? "border-primary bg-primary/10" : "text-muted-foreground hover:bg-muted",
                       )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
-                  </div>
-                  <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
-                  <Button
-                    variant="ghost"
-                    className="size-10"
-                    aria-label={`Usuń wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
-                    onClick={() => ledger.remove(e.id).catch((err) => toast.error(errorMessage(err)))}
-                  >
-                    <Trash2Icon />
-                  </Button>
-                </li>
-              ))}
-            </ul>
+                    >
+                      {CATEGORY_INFO[c].label}
+                    </button>
+                  ))}
+                </div>
+                {selected && (
+                  <DailyLimit
+                    budget={selected.amount}
+                    variableSpent={selected.fromLedger}
+                    fixed={selected.fixed}
+                    currency={currency}
+                    testId="form-daily-limit"
+                    spentToday={ledger.items.filter((e) => e.category === category && e.spent_on === todayIso()).reduce((s, e) => s + e.amount, 0)}
+                  />
+                )}
+                <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
+                  <Field label="Kwota" error={errors.amount?.message}>
+                    {(p) => <Input {...p} inputMode="decimal" placeholder="49,90" className="h-11" {...register("amount")} />}
+                  </Field>
+                  <Field label="Data" error={errors.spent_on?.message}>
+                    {(p) => <Input {...p} type="date" className="h-11" {...register("spent_on")} />}
+                  </Field>
+                </div>
+                <Field label="Notatka (opcjonalnie)" error={errors.note?.message}>
+                  {(p) => <Input {...p} placeholder="np. kino" className="h-11" {...register("note")} />}
+                </Field>
+                <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
+                  Dopisz wydatek
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          </div>
+          <div className="order-3">
+          {upcoming.length > 0 && (
+            <Card size="sm" data-testid="upcoming-installments">
+              <CardHeader>
+                <CardTitle className="text-base">Zbliżające się raty</CardTitle>
+                <CardDescription>Raty kredytów i pożyczek w najbliższych tygodniach (liczą się do Potrzeb)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="divide-y text-sm">
+                  {upcoming.map(({ loan, next }, i) => (
+                    <li key={`${loan.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{loan.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums font-semibold">{money(loan.installment_amount, currency)}</span>
+                      {isPaid(loan, next.date) ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" data-testid={`paid-${i}`}>
+                          <CheckIcon className="size-3.5" aria-hidden /> Opłacona
+                        </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          aria-label={`Oznacz ratę ${loan.name} jako zapłaconą`}
+                          onClick={() => ledger.payLoan(loan, isoDate(next.date)).then(() => toast.success("Rata oznaczona jako zapłacona")).catch((err) => toast.error(errorMessage(err)))}
+                        >
+                          Zapłacona
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          </div>
+          <div className="order-4">
+          <RecurringCard recurring={recurring} currency={currency} />
+
+          </div>
+        </div>
+        <div className="contents lg:grid lg:content-start lg:gap-6">
+          <div className="order-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Ten miesiąc</CardTitle>
+              <CardDescription>Wydane łącznie z rejestru: {money(ledger.total, currency)}</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              {rows.map((r) => (
+                <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="font-medium">{CATEGORY_INFO[r.c].label}</span>
+                    <span className={cn("tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
+                      {money(r.spent, currency)} / {money(r.amount, currency)}
+                      {r.usage != null && ` (${num(r.usage, 0)}%)`}
+                    </span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label={`Wykorzystanie budżetu: ${CATEGORY_INFO[r.c].label}`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.min(100, Math.round(r.usage ?? 0))}
+                    className="h-2 overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className={cn("h-full rounded-full", r.usage != null && r.usage > 100 ? "bg-destructive" : "bg-primary")}
+                      style={{ width: `${Math.min(100, r.usage ?? 0)}%` }}
+                    />
+                  </div>
+                  <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          </div>
+          <div className="order-5">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Wpisy z tego miesiąca</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {ledger.items.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nic jeszcze nie dopisano.</p>
+              ) : (
+                <ul className="divide-y" data-testid="expense-list">
+                  {ledger.items.map((e) => (
+                    <li key={e.id} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {e.note || CATEGORY_INFO[e.category].label}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">{CATEGORY_INFO[e.category].label}</span>
+                          {e.source_type && (
+                            <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
+                              {e.source_type === "LOAN" ? "rata" : "stały"}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
+                      </div>
+                      <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
+                      <Button
+                        variant="ghost"
+                        className="size-10"
+                        aria-label={`Usuń wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
+                        onClick={() => ledger.remove(e.id).catch((err) => toast.error(errorMessage(err)))}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          </div>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
