@@ -48,6 +48,8 @@ const COLORS: Record<Category, string> = {
 const entriesLabel = (n: number) =>
   n === 1 ? "1 wpis" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} wpisy` : `${n} wpisów`;
 
+const installmentsLabel = (n: number) => (n === 1 ? "1 rata" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} raty` : `${n} rat`);
+
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleDateString("pl-PL", { month: "short", year: "2-digit" });
 
 export default function ExpensesPage() {
@@ -89,8 +91,11 @@ export default function ExpensesPage() {
   });
 
   // rata opłacona = wpis LOAN w miesiącu jej terminu
-  const isPaid = (loan: { id?: string; name: string }, due: Date) =>
+  const isPaid = (loan: { id?: string; name: string; installment_amount: number }, due: Date) =>
     ledger.allItems.some((e) => e.source_type === "LOAN" && e.source_id === loanKey(loan) && e.spent_on.slice(0, 7) === isoDate(due).slice(0, 7));
+
+  // nieopłacone raty pokazujemy też w drzewie, pod Potrzebami (opłacone są już na liście jako wpisy "rata")
+  const dueLoans = upcoming.filter(({ loan, next }) => !isPaid(loan, next.date));
 
   const selected = rows.find((r) => r.c === category);
 
@@ -238,20 +243,24 @@ export default function ExpensesPage() {
               <CardContent className="grid gap-5">
                 {rows.map((r) => {
                   const entries = ledger.items.filter((e) => e.category === r.c);
+                  const loanRows = r.c === "NEEDS" ? dueLoans : [];
                   const isOpen = !!open[r.c];
                   return (
-                    <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
+                    <div key={r.c} className="grid min-w-0 gap-1.5" data-testid={`usage-${r.c}`}>
                       <button
                         type="button"
                         aria-expanded={isOpen}
                         aria-controls={`entries-${r.c}`}
                         onClick={() => setOpen((o) => ({ ...o, [r.c]: !o[r.c] }))}
-                        className="flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <span className="flex min-w-0 items-center gap-1.5 font-medium">
                           <ChevronRightIcon className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} aria-hidden />
                           {CATEGORY_INFO[r.c].label}
-                          <span className="text-xs font-normal text-muted-foreground">({entriesLabel(entries.length)})</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            ({entriesLabel(entries.length)}
+                            {loanRows.length > 0 ? `, ${installmentsLabel(loanRows.length)} do zapłaty)` : ")"}
+                          </span>
                         </span>
                         <span className={cn("shrink-0 tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
                           {money(r.spent, currency)} / {money(r.amount, currency)}
@@ -273,10 +282,43 @@ export default function ExpensesPage() {
                       </div>
                       <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
                       {isOpen && (
-                        <div id={`entries-${r.c}`} className="mt-1 ml-2 border-l pl-3">
-                          {entries.length === 0 ? (
+                        <div id={`entries-${r.c}`} className="mt-1 ml-2 min-w-0 border-l pl-3">
+                          {loanRows.length > 0 && (
+                            <ul className="divide-y border-b" data-testid={`loan-rows-${r.c}`} aria-label="Raty do zapłaty">
+                              {loanRows.map(({ loan, next }, i) => (
+                                <li key={`${loan.name}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+                                  <div className="min-w-0 flex-1 basis-44">
+                                    <p className="truncate text-sm font-medium">
+                                      {loan.name}
+                                      <span className="ml-2 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" data-testid="loan-row-status">
+                                        rata do zapłaty
+                                      </span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                                    </p>
+                                  </div>
+                                  <span className="tabular-nums text-sm font-semibold">{money(loan.installment_amount, currency)}</span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label={`Zapłacona: rata ${loan.name}`}
+                                    onClick={() =>
+                                      ledger
+                                        .payLoan(loan, isoDate(next.date))
+                                        .then(() => toast.success("Rata oznaczona jako zapłacona"))
+                                        .catch((err) => toast.error(errorMessage(err)))
+                                    }
+                                  >
+                                    Zapłacona
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {entries.length === 0 && loanRows.length === 0 ? (
                             <p className="py-1 text-sm text-muted-foreground">Brak wpisów w tej kategorii.</p>
-                          ) : (
+                          ) : entries.length === 0 ? null : (
                             <ul className="divide-y" data-testid={`expense-list-${r.c}`}>
                               {entries.map((e) => (
                                 <li key={e.id} className="flex items-center gap-2 py-1.5">
