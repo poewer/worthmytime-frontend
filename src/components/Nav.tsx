@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import AlertsBell from "./AlertsBell";
 import { useApp } from "./AppProvider";
 import ThemeToggle from "./ThemeToggle";
 
@@ -136,6 +137,7 @@ export default function Nav() {
                 Zaloguj się
               </Link>
             )}
+            <AlertsBell />
             <ThemeToggle />
           </div>
         </div>
