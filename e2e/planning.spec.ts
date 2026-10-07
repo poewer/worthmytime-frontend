@@ -33,7 +33,7 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   await page.getByLabel("Notatka (opcjonalnie)").fill("kino");
   await page.getByRole("button", { name: "Dopisz wydatek" }).click();
 
-  await expect(page.getByTestId("expense-list")).toContainText("kino");
+  await expect(page.getByTestId("expense-list-FUN")).toContainText("kino"); // kategoria rozwija się po dopisaniu
   // budżet FUN przy dochodzie 7 000 zł to 700 zł: 200 / 700 = 29%
   await expect(page.getByTestId("usage-FUN")).toContainText("29%");
 
@@ -52,6 +52,7 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   expect(sent?.budget?.spent.FUN).toBe(200);
 
   await page.goto("/expenses");
+  await page.getByTestId("usage-FUN").getByRole("button", { expanded: false }).click(); // po wejściu kategorie są zwinięte
   await page.getByRole("button", { name: /Usuń wydatek kino/ }).click();
   await expect(page.getByText("Nic jeszcze nie dopisano.")).toBeVisible();
 });
@@ -67,7 +68,7 @@ test("dzienny limit i prognoza: ile na dzień, pasek dzisiejszych wydatków i os
 
   await page.getByLabel("Kwota").fill("400");
   await page.getByRole("button", { name: "Dopisz wydatek" }).click();
-  await expect(page.getByTestId("expense-list")).toBeVisible();
+  await expect(page.getByTestId("expense-list-FUN")).toBeVisible();
 
   // zostało 300 zł na 22 dni = 13,64 zł dziennie; tempo 40 zł dziennie wyczerpie budżet za 7 dni
   const daily = page.getByTestId("daily-FUN");
@@ -112,7 +113,8 @@ test("stałe wydatki (bez konta): dopisują się do rejestru w dniu płatności 
   });
   await page.goto("/expenses");
 
-  const list = page.getByTestId("expense-list");
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  const list = page.getByTestId("expense-list-NEEDS");
   await expect(list).toContainText("Czynsz");
   await expect(list.getByTestId("expense-source")).toHaveText("stały");
   await expect(list.locator("li")).toHaveCount(1); // tylko październik jest w bieżącym miesiącu
@@ -121,7 +123,8 @@ test("stałe wydatki (bez konta): dopisują się do rejestru w dniu płatności 
 
   // odświeżenie nie dopisuje duplikatów
   await page.reload();
-  await expect(page.getByTestId("expense-list").locator("li")).toHaveCount(1);
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  await expect(page.getByTestId("expense-list-NEEDS").locator("li")).toHaveCount(1);
 
   // nowy stały wydatek: pojawia się na liście szablonów z sumą miesięczną
   const card = page.getByTestId("recurring-card");
@@ -161,7 +164,8 @@ test("raty: oznaczenie jako zapłacona zapisuje wpis i nie liczy raty drugi raz"
   await expect(page.getByTestId("paid-0")).toContainText("Opłacona");
   await expect(page.getByRole("button", { name: /jako zapłaconą/ })).toHaveCount(0);
 
-  const list = page.getByTestId("expense-list");
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  const list = page.getByTestId("expense-list-NEEDS");
   await expect(list).toContainText("Rata: Kredyt auto");
   await expect(list.getByTestId("expense-source")).toHaveText("rata");
   // rata jest już zobowiązaniem w Potrzebach, więc wpis nie podnosi wykorzystania budżetu

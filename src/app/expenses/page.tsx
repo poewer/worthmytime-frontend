@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -44,6 +44,9 @@ const COLORS: Record<Category, string> = {
   FUN: "var(--chart-5)",
 };
 
+const entriesLabel = (n: number) =>
+  n === 1 ? "1 wpis" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} wpisy` : `${n} wpisów`;
+
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleDateString("pl-PL", { month: "short", year: "2-digit" });
 
 export default function ExpensesPage() {
@@ -51,6 +54,8 @@ export default function ExpensesPage() {
   const ledger = useLedger();
   const recurring = useRecurring(ledger.reload);
   const [category, setCategory] = useState<Category>("FUN");
+  // które kategorie w podsumowaniu miesiąca są rozwinięte (pokazują swoje wpisy)
+  const [open, setOpen] = useState<Partial<Record<Category, boolean>>>({});
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
     defaultValues: { amount: "", note: "", spent_on: todayIso() },
@@ -92,6 +97,7 @@ export default function ExpensesPage() {
     try {
       await ledger.add({ category, amount: v.amount, note: v.note || undefined, spent_on: v.spent_on });
       toast.success("Wydatek dopisany");
+      setOpen((o) => ({ ...o, [category]: true })); // od razu pokaż dopisany wpis w jego kategorii
       reset({ amount: "", note: "", spent_on: todayIso() });
     } catch (e) {
       toast.error(errorMessage(e, "Nie udało się dopisać wydatku"));
@@ -215,81 +221,90 @@ export default function ExpensesPage() {
         </div>
         <div className="contents lg:grid lg:content-start lg:gap-6">
           <div className="order-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Ten miesiąc</CardTitle>
-              <CardDescription>Wydane łącznie z rejestru: {money(ledger.total, currency)}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {rows.map((r) => (
-                <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="font-medium">{CATEGORY_INFO[r.c].label}</span>
-                    <span className={cn("tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
-                      {money(r.spent, currency)} / {money(r.amount, currency)}
-                      {r.usage != null && ` (${num(r.usage, 0)}%)`}
-                    </span>
-                  </div>
-                  <div
-                    role="progressbar"
-                    aria-label={`Wykorzystanie budżetu: ${CATEGORY_INFO[r.c].label}`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.min(100, Math.round(r.usage ?? 0))}
-                    className="h-2 overflow-hidden rounded-full bg-muted"
-                  >
-                    <div
-                      className={cn("h-full rounded-full", r.usage != null && r.usage > 100 ? "bg-destructive" : "bg-primary")}
-                      style={{ width: `${Math.min(100, r.usage ?? 0)}%` }}
-                    />
-                  </div>
-                  <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          </div>
-          <div className="order-5">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Wpisy z tego miesiąca</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {ledger.items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nic jeszcze nie dopisano.</p>
-              ) : (
-                <ul className="divide-y" data-testid="expense-list">
-                  {ledger.items.map((e) => (
-                    <li key={e.id} className="flex items-center gap-3 py-2.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {e.note || CATEGORY_INFO[e.category].label}
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">{CATEGORY_INFO[e.category].label}</span>
-                          {e.source_type && (
-                            <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
-                              {e.source_type === "LOAN" ? "rata" : "stały"}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
-                      </div>
-                      <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
-                      <Button
-                        variant="ghost"
-                        className="size-10"
-                        aria-label={`Usuń wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
-                        onClick={() => ledger.remove(e.id).catch((err) => toast.error(errorMessage(err)))}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Ten miesiąc</CardTitle>
+                <CardDescription>
+                  Wydane łącznie z rejestru: {money(ledger.total, currency)}. Rozwiń kategorię, żeby zobaczyć jej wpisy.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5">
+                {rows.map((r) => {
+                  const entries = ledger.items.filter((e) => e.category === r.c);
+                  const isOpen = !!open[r.c];
+                  return (
+                    <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={`entries-${r.c}`}
+                        onClick={() => setOpen((o) => ({ ...o, [r.c]: !o[r.c] }))}
+                        className="flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <Trash2Icon />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
+                        <span className="flex min-w-0 items-center gap-1.5 font-medium">
+                          <ChevronRightIcon className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} aria-hidden />
+                          {CATEGORY_INFO[r.c].label}
+                          <span className="text-xs font-normal text-muted-foreground">({entriesLabel(entries.length)})</span>
+                        </span>
+                        <span className={cn("shrink-0 tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
+                          {money(r.spent, currency)} / {money(r.amount, currency)}
+                          {r.usage != null && ` (${num(r.usage, 0)}%)`}
+                        </span>
+                      </button>
+                      <div
+                        role="progressbar"
+                        aria-label={`Wykorzystanie budżetu: ${CATEGORY_INFO[r.c].label}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.min(100, Math.round(r.usage ?? 0))}
+                        className="h-2 overflow-hidden rounded-full bg-muted"
+                      >
+                        <div
+                          className={cn("h-full rounded-full", r.usage != null && r.usage > 100 ? "bg-destructive" : "bg-primary")}
+                          style={{ width: `${Math.min(100, r.usage ?? 0)}%` }}
+                        />
+                      </div>
+                      <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
+                      {isOpen && (
+                        <div id={`entries-${r.c}`} className="mt-1 ml-2 border-l pl-3">
+                          {entries.length === 0 ? (
+                            <p className="py-1 text-sm text-muted-foreground">Brak wpisów w tej kategorii.</p>
+                          ) : (
+                            <ul className="divide-y" data-testid={`expense-list-${r.c}`}>
+                              {entries.map((e) => (
+                                <li key={e.id} className="flex items-center gap-2 py-1.5">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium">
+                                      {e.note || CATEGORY_INFO[e.category].label}
+                                      {e.source_type && (
+                                        <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
+                                          {e.source_type === "LOAN" ? "rata" : "stały"}
+                                        </span>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
+                                  </div>
+                                  <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
+                                  <Button
+                                    variant="ghost"
+                                    className="size-9"
+                                    aria-label={`Usuń wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
+                                    onClick={() => ledger.remove(e.id).catch((err) => toast.error(errorMessage(err)))}
+                                  >
+                                    <Trash2Icon />
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {ledger.items.length === 0 && <p className="text-sm text-muted-foreground">Nic jeszcze nie dopisano.</p>}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
