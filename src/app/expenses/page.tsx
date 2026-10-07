@@ -8,6 +8,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
+import DailyLimit from "@/components/DailyLimit";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import { Button } from "@/components/ui/button";
@@ -75,8 +76,10 @@ export default function ExpensesPage() {
     const amount = ledger.serverBudget?.amounts?.[c] ?? (monthlyIncome * percentages[c]) / 100;
     const loans = c === "NEEDS" ? loansTotal : 0;
     const spent = ledger.totals[c] + loans;
-    return { c, amount, spent, usage: amount > 0 ? (spent / amount) * 100 : null, fromLedger: ledger.totals[c] };
+    return { c, amount, spent, usage: amount > 0 ? (spent / amount) * 100 : null, fromLedger: ledger.totals[c], fixed: loans };
   });
+
+  const selected = rows.find((r) => r.c === category);
 
   async function submit(v: FormOut) {
     try {
@@ -124,6 +127,16 @@ export default function ExpensesPage() {
                 </button>
               ))}
             </div>
+            {selected && (
+              <DailyLimit
+                budget={selected.amount}
+                variableSpent={selected.fromLedger}
+                fixed={selected.fixed}
+                currency={currency}
+                testId="form-daily-limit"
+                spentToday={ledger.items.filter((e) => e.category === category && e.spent_on === todayIso()).reduce((s, e) => s + e.amount, 0)}
+              />
+            )}
             <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
               <Field label="Kwota" error={errors.amount?.message}>
                 {(p) => <Input {...p} inputMode="decimal" placeholder="49,90" className="h-11" {...register("amount")} />}
@@ -170,6 +183,7 @@ export default function ExpensesPage() {
                   style={{ width: `${Math.min(100, r.usage ?? 0)}%` }}
                 />
               </div>
+              <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
             </div>
           ))}
         </CardContent>
