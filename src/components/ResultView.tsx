@@ -22,65 +22,79 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
 
   return (
     <div className="grid gap-4">
-      <Card className="overflow-hidden bg-gradient-to-br from-primary/15 via-card to-card">
-        <CardContent className="grid gap-5 text-center">
-          <div>
-            <p className="text-sm text-muted-foreground">{result.name}</p>
-            <p className="text-lg font-semibold tabular-nums">
-              {money(headlineCost, currency)}
-              {recurring && <span className="text-sm font-normal text-muted-foreground"> / miesiąc</span>}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">{recurring ? "kosztuje Cię miesięcznie" : "kosztuje Cię"}</p>
-            <p className="text-6xl leading-none font-bold tracking-tight text-primary tabular-nums sm:text-7xl" data-testid="hours">
-              {num(w.hours, 1)}
-              <span className="ml-1 text-2xl font-semibold sm:text-3xl">h</span>
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">pracy ({hm(w.hours_part, w.minutes_part)})</p>
-          </div>
+      <section
+        aria-label="Wynik"
+        className="relative isolate grid gap-[18px] overflow-hidden rounded-[26px] bg-brand px-[18px] py-[22px] text-brand-foreground shadow-[0_30px_60px_-36px] shadow-brand sm:p-7"
+      >
+        <svg
+          aria-hidden
+          width="300"
+          height="300"
+          viewBox="0 0 320 320"
+          fill="none"
+          className="pointer-events-none absolute -top-[130px] -right-[130px] -z-10"
+        >
+          <circle cx="160" cy="160" r="150" stroke="#ffffff12" strokeWidth="2" />
+          <circle cx="160" cy="160" r="110" stroke="#ffffff0d" strokeWidth="2" />
+          <circle cx="160" cy="160" r="70" stroke="#ffffff0a" strokeWidth="2" />
+        </svg>
+        <div>
+          <p className="text-sm text-brand-muted">{result.name}</p>
+          <p className="text-lg font-semibold tabular-nums">
+            {money(headlineCost, currency)}
+            {recurring && <span className="text-sm font-normal text-brand-muted"> / miesiąc</span>}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm text-brand-muted">{recurring ? "kosztuje Cię miesięcznie" : "kosztuje Cię"}</p>
+          <p
+            className="font-heading text-[5.75rem] leading-[0.95] font-extrabold tracking-[-0.045em] text-lime tabular-nums sm:text-[6.5rem]"
+            data-testid="hours"
+          >
+            {num(w.hours, 1)}
+            <span className="ml-1.5 text-4xl font-bold tracking-normal">h</span>
+          </p>
+          <p className="mt-1.5 text-sm text-brand-muted">pracy ({hm(w.hours_part, w.minutes_part)})</p>
+        </div>
 
-          {w.income_percent != null && <IncomeShare percent={w.income_percent} recurring={recurring} />}
+        {w.income_percent != null && <IncomeShare percent={w.income_percent} recurring={recurring} />}
 
-          {w.working_months != null && (
-          <section aria-labelledby="scale-month" className="grid gap-3 text-left">
-            <h3 id="scale-month" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {w.working_months != null && (
+          <section aria-labelledby="scale-month" className="grid gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.06] p-3.5">
+            <h3 id="scale-month" className="text-[11px] font-semibold tracking-[0.1em] text-brand-muted uppercase">
               W skali miesiąca
             </h3>
-            <p className="text-2xl font-semibold tabular-nums" data-testid="months">
+            <p className="font-heading text-[26px] font-bold tabular-nums" data-testid="months">
               {w.working_months < 1 ? num(w.working_months, 2) : monthsLabel(Math.round(w.working_months * 10) / 10)}
-              {w.working_months < 1 && <span className="text-base font-medium"> miesiąca pracy</span>}
-              {w.working_months >= 1 && <span className="text-base font-medium"> pracy</span>}
+              {w.working_months < 1 && <span className="font-sans text-sm font-medium text-white/85"> miesiąca pracy</span>}
+              {w.working_months >= 1 && <span className="font-sans text-sm font-medium text-white/85"> pracy</span>}
             </p>
             <MonthStrip months={w.working_months} />
-            <p className="-mt-1 text-xs text-muted-foreground">1 klocek = 1 miesiąc pracy</p>
-            <div className="grid grid-cols-2 gap-2 text-center sm:gap-3">
+            <p className="text-xs text-brand-muted">1 klocek = 1 miesiąc pracy</p>
+            <div className="grid grid-cols-2 gap-2 text-center">
               <Stat value={num(w.working_days, 1)} label="dni roboczych" />
               <Stat value={num(w.working_weeks, 1)} label="tygodni roboczych" />
             </div>
           </section>
-          )}
+        )}
 
-          {!recurring && (
-          <section aria-labelledby="scale-year" className="grid gap-2 text-left">
-            <h3 id="scale-year" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {!recurring && (
+          <section aria-labelledby="scale-year" className="grid gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.06] p-3.5">
+            <h3 id="scale-year" className="text-[11px] font-semibold tracking-[0.1em] text-brand-muted uppercase">
               W skali lat
             </h3>
-            <p className="text-2xl font-semibold tabular-nums" data-testid="years">
+            <p className="font-heading text-[26px] font-bold tabular-nums" data-testid="years">
               {w.working_years < 1 ? num(w.working_years, 2) : yearsLabel(Math.round(w.working_years * 100) / 100)}
-              <span className="text-base font-medium">
-                {w.working_years < 1 ? " roku pracy" : " pracy"}
-              </span>
+              <span className="font-sans text-sm font-medium text-white/85">{w.working_years < 1 ? " roku pracy" : " pracy"}</span>
             </p>
             <ProgressBar value={w.working_years * 100} label="Udział w roku pracy" />
           </section>
-          )}
+        )}
 
-          {result.hourly_rate != null && (
-            <p className="text-xs text-muted-foreground">Efektywna stawka: {money(result.hourly_rate, currency)}/h</p>
-          )}
-        </CardContent>
-      </Card>
+        {result.hourly_rate != null && (
+          <p className="text-xs text-brand-muted">Efektywna stawka: {money(result.hourly_rate, currency)}/h</p>
+        )}
+      </section>
       {result.budget && <BudgetCard budget={result.budget} currency={currency} />}
 
       {result.per_use && (
@@ -90,8 +104,8 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
             <CardDescription>Przy {num(result.per_use.uses, 0)} użyciach</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 text-center sm:gap-3">
-            <Stat value={money(result.per_use.cost, currency)} label="za jedno użycie" />
-            <Stat value={`${num(result.per_use.work_minutes, 1)} min`} label="Twojej pracy" />
+            <Stat tone="light" value={money(result.per_use.cost, currency)} label="za jedno użycie" />
+            <Stat tone="light" value={`${num(result.per_use.work_minutes, 1)} min`} label="Twojej pracy" />
           </CardContent>
         </Card>
       )}
@@ -157,9 +171,9 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
             <CardDescription>Koszt rozłożony w czasie</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-2 text-center sm:gap-3">
-            <Stat value={money(result.life_cost.per_day, currency)} label="dziennie" />
-            <Stat value={money(result.life_cost.per_week, currency)} label="tygodniowo" />
-            <Stat value={money(result.life_cost.per_month, currency)} label="miesięcznie" />
+            <Stat value={money(result.life_cost.per_day, currency)} label="dziennie" tone="light" />
+            <Stat value={money(result.life_cost.per_week, currency)} label="tygodniowo" tone="light" />
+            <Stat value={money(result.life_cost.per_month, currency)} label="miesięcznie" tone="light" />
           </CardContent>
         </Card>
       )}
@@ -250,11 +264,11 @@ function BreakdownCard({ result, currency }: { result: Result; currency: string 
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label, tone = "dark" }: { value: string; label: string; tone?: "dark" | "light" }) {
   return (
-    <div className="rounded-xl bg-muted/60 px-1 py-2.5">
-      <div className="text-base font-semibold tabular-nums sm:text-lg">{value}</div>
-      <div className="text-[11px] leading-tight text-muted-foreground sm:text-xs">{label}</div>
+    <div className={tone === "dark" ? "rounded-xl bg-white/[0.07] px-1 py-2.5" : "rounded-xl bg-muted/60 px-1 py-2.5"}>
+      <div className="font-heading text-lg font-bold tabular-nums sm:text-xl">{value}</div>
+      <div className={`text-xs leading-tight ${tone === "dark" ? "text-brand-muted" : "text-muted-foreground"}`}>{label}</div>
     </div>
   );
 }
@@ -267,30 +281,48 @@ function shareLabel(percent: number) {
 
 function IncomeShare({ percent, recurring = false }: { percent: number; recurring?: boolean }) {
   if (percent <= 0) return null;
-  const tone =
-    percent >= 100
-      ? "bg-destructive/10 text-destructive"
-      : percent >= 25
-        ? "bg-chart-3/20 text-foreground"
-        : "bg-primary/10 text-foreground";
+  const multiple = percent >= 100;
+  // pierścień pokazuje procent wypłaty; od 100% zostaje pełny
+  const dash = (Math.min(percent, 100) / 100) * 314.2;
   return (
-    <div className={`rounded-xl px-4 py-3 ${tone}`} data-testid="income-share">
-      {percent >= 100 ? (
-        <p className="text-lg font-semibold">
-          To <span className="tabular-nums">{num(percent / 100, 1)}×</span> Twojej miesięcznej wypłaty
+    <div className="flex items-center gap-3.5 rounded-[18px] bg-white/[0.07] px-3.5 py-3" data-testid="income-share">
+      <div className="relative size-[60px] flex-none">
+        <svg width="60" height="60" viewBox="0 0 120 120" aria-hidden>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#ffffff26" strokeWidth="14" />
+          <circle
+            cx="60"
+            cy="60"
+            r="50"
+            fill="none"
+            stroke={percent >= 100 ? "#f2a3b8" : "#b8f26b"}
+            strokeWidth="14"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} 314.2`}
+            transform="rotate(-90 60 60)"
+          />
+        </svg>
+        <span className="absolute inset-0 grid place-items-center text-[13px] font-bold tabular-nums">
+          {multiple ? `${num(percent / 100, 1)}×` : `${num(percent, 0)}%`}
+        </span>
+      </div>
+      <div>
+        {multiple ? (
+          <p className="text-base leading-snug font-semibold">
+            To <span className="tabular-nums">{num(percent / 100, 1)}×</span> Twojej miesięcznej wypłaty
+          </p>
+        ) : (
+          <p className="text-base leading-snug font-semibold">
+            To <span className="tabular-nums">{num(percent, 1)}%</span> Twojej miesięcznej wypłaty
+          </p>
+        )}
+        <p className="mt-0.5 text-xs text-brand-muted">
+          {recurring
+            ? "Tyle z miesięcznej pracy pochłania ta opłata - co miesiąc."
+            : multiple
+              ? "Tyle miesięcy pracy oddajesz za ten wydatek."
+              : "Tyle z miesięcznej pracy pochłania ten wydatek."}
         </p>
-      ) : (
-        <p className="text-lg font-semibold">
-          To <span className="tabular-nums">{num(percent, 1)}%</span> Twojej miesięcznej wypłaty
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground">
-        {recurring
-          ? "Tyle z miesięcznej pracy pochłania ta opłata - co miesiąc."
-          : percent >= 100
-            ? "Tyle miesięcy pracy oddajesz za ten wydatek."
-            : "Tyle z miesięcznej pracy pochłania ten wydatek."}
-      </p>
+      </div>
     </div>
   );
 }
@@ -307,8 +339,8 @@ function MonthStrip({ months }: { months: number }) {
       {Array.from({ length: 12 }, (_, i) => {
         const fill = Math.max(0, Math.min(1, shown - i));
         return (
-          <span key={i} className="h-3 overflow-hidden rounded-sm bg-muted">
-            <span className="block h-full bg-primary" style={{ width: `${fill * 100}%` }} />
+          <span key={i} className="h-3.5 overflow-hidden rounded bg-white/[0.12]">
+            <span className="block h-full bg-lime" style={{ width: `${fill * 100}%` }} />
           </span>
         );
       })}
@@ -325,9 +357,9 @@ function ProgressBar({ value, label }: { value: number; label: string }) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
-      className="h-2 overflow-hidden rounded-full bg-muted"
+      className="h-3.5 overflow-hidden rounded-full bg-white/[0.12]"
     >
-      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-full min-w-2 rounded-full bg-lime transition-all" style={{ width: `${pct}%` }} />
     </div>
   );
 }

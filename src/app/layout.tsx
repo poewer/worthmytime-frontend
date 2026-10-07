@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import Nav from "@/components/Nav";
 import Providers from "@/components/Providers";
 import "./globals.css";
@@ -7,6 +7,12 @@ import "./globals.css";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin", "latin-ext"],
+});
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin", "latin-ext"],
+  weight: ["500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -23,14 +29,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafcfb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f5f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1511" },
   ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="pl" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="pl" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <Providers>
           <a

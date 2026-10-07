@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import AlertsBell from "./AlertsBell";
 import { useApp } from "./AppProvider";
 import ThemeToggle from "./ThemeToggle";
 
@@ -62,11 +63,13 @@ export default function Nav() {
     <>
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-            <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <HourglassIcon className="size-4" />
+          <Link href="/" className="flex items-center gap-2.5 font-heading text-xl font-bold tracking-tight" aria-label="WorthMyTime - strona główna">
+            <span className="grid size-9 place-items-center rounded-xl bg-brand text-lime">
+              <HourglassIcon className="size-[18px]" />
             </span>
-            WorthMyTime
+            <span aria-hidden>
+              Worth<span className="text-primary">My</span>Time
+            </span>
           </Link>
 
           <nav aria-label="Główna nawigacja" className="ml-4 hidden items-center gap-1 lg:flex">
@@ -76,8 +79,10 @@ export default function Nav() {
                 href={href}
                 aria-current={isActive(path, href) ? "page" : undefined}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted",
-                  isActive(path, href) ? "bg-muted text-foreground" : "text-muted-foreground",
+                  "rounded-full px-3.5 py-2 text-sm font-medium transition-colors",
+                  isActive(path, href)
+                    ? "bg-brand text-brand-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {label}
@@ -89,8 +94,10 @@ export default function Nav() {
                   <button
                     type="button"
                     className={cn(
-                      "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted",
-                      moreActive ? "bg-muted text-foreground" : "text-muted-foreground",
+                      "flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition-colors",
+                      moreActive
+                        ? "bg-brand text-brand-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   />
                 }
@@ -109,15 +116,28 @@ export default function Nav() {
 
           <div className="ml-auto flex items-center gap-1">
             {email ? (
-              <Button variant="ghost" size="sm" onClick={logout} className="hidden sm:inline-flex" aria-label="Wyloguj">
-                <span className="max-w-40 truncate text-muted-foreground">{email}</span>
-                <LogOutIcon />
-              </Button>
+              <>
+                <Link
+                  href="/profile"
+                  aria-label="Konto i ustawienia"
+                  title={email}
+                  className="grid size-9 place-items-center rounded-full border bg-card text-sm font-bold text-primary"
+                >
+                  {email.charAt(0).toUpperCase()}
+                </Link>
+                <Button variant="ghost" size="icon" onClick={logout} className="hidden sm:inline-flex" aria-label="Wyloguj">
+                  <LogOutIcon />
+                </Button>
+              </>
             ) : (
-              <Link href="/profile" className="px-2 text-sm font-medium text-primary hover:underline">
+              <Link
+                href="/profile"
+                className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-semibold hover:border-foreground"
+              >
                 Zaloguj się
               </Link>
             )}
+            <AlertsBell />
             <ThemeToggle />
           </div>
         </div>
@@ -135,11 +155,18 @@ export default function Nav() {
                 href={href}
                 aria-current={isActive(path, href) ? "page" : undefined}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
-                  isActive(path, href) ? "text-primary" : "text-muted-foreground",
+                  "flex min-h-16 flex-col items-center justify-center gap-1 text-[11px]",
+                  isActive(path, href) ? "font-bold text-brand dark:text-lime" : "font-medium text-muted-foreground",
                 )}
               >
-                <Icon className="size-5" />
+                <span
+                  className={cn(
+                    "grid h-[30px] w-14 place-items-center rounded-full",
+                    isActive(path, href) && "bg-lime-soft dark:bg-lime-soft",
+                  )}
+                >
+                  <Icon className="size-5" />
+                </span>
                 {label}
               </Link>
             </li>
@@ -150,11 +177,13 @@ export default function Nav() {
               onClick={() => setSheetOpen(true)}
               aria-haspopup="dialog"
               className={cn(
-                "flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
-                moreActive ? "text-primary" : "text-muted-foreground",
+                "flex min-h-16 w-full flex-col items-center justify-center gap-1 text-[11px]",
+                moreActive ? "font-bold text-brand dark:text-lime" : "font-medium text-muted-foreground",
               )}
             >
-              <EllipsisIcon className="size-5" />
+              <span className={cn("grid h-[30px] w-14 place-items-center rounded-full", moreActive && "bg-lime-soft")}>
+                <EllipsisIcon className="size-5" />
+              </span>
               Więcej
             </button>
           </li>

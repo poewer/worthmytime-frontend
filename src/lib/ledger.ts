@@ -17,7 +17,11 @@ export const todayIso = (): string => {
 
 export const totalsFor = (items: Expense[], period: string): Record<Category, number> => {
   const totals = zeroTotals();
-  for (const e of items) if (periodOf(e.spent_on) === period) totals[e.category] = round2(totals[e.category] + e.amount);
+  // opłacona rata (LOAN) jest na liście, ale nie liczy się do "wydanego": rata jest już zobowiązaniem w Potrzebach
+  for (const e of items) {
+    if (e.source_type === "LOAN") continue;
+    if (periodOf(e.spent_on) === period) totals[e.category] = round2(totals[e.category] + e.amount);
+  }
   return totals;
 };
 
