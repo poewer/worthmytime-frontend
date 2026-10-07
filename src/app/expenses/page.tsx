@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
+import ImportButton from "@/components/ImportButton";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import RecurringCard from "@/components/RecurringCard";
@@ -109,12 +110,18 @@ export default function ExpensesPage() {
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Wydatki</h1>
-        <p className="text-sm text-muted-foreground">
-          Dopisuj wydatki na bieżąco - dostępny budżet kategorii w kalkulatorze uwzględni je automatycznie.
-          {!loggedIn && " Bez konta zapisujemy je tylko w tej przeglądarce."}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Wydatki</h1>
+          <p className="text-sm text-muted-foreground">
+            Dopisuj wydatki na bieżąco - dostępny budżet kategorii w kalkulatorze uwzględni je automatycznie.
+            {!loggedIn && " Bez konta zapisujemy je tylko w tej przeglądarce."}
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <ImportButton currency={currency} onImport={ledger.importMany} />
+          <span className="text-xs text-muted-foreground">Obsługiwany format: wyciąg z iPKO (CSV)</span>
+        </div>
       </div>
 
       {/* komputer: dwie kolumny (dodawanie po lewej, podsumowanie i wpisy po prawej); telefon: jedna kolumna w kolejności order */}
@@ -278,7 +285,7 @@ export default function ExpensesPage() {
                                       {e.note || CATEGORY_INFO[e.category].label}
                                       {e.source_type && (
                                         <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
-                                          {e.source_type === "LOAN" ? "rata" : "stały"}
+                                          {e.source_type === "LOAN" ? "rata" : e.source_type === "IMPORT" ? "import" : "stały"}
                                         </span>
                                       )}
                                     </p>
