@@ -31,8 +31,8 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
-  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata); brak = wpis ręczny */
-  source_type?: "RECURRING" | "LOAN" | null;
+  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku); brak = wpis ręczny */
+  source_type?: "RECURRING" | "LOAN" | "IMPORT" | null;
   source_id?: string | null;
 }
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
 import { api, type BudgetState, type Category, type Expense, type MonthSummary } from "./api";
 import { errorMessage } from "./forms";
+import type { ImportedExpense } from "./ipko";
 import { lastPeriods, periodOf, round2, summarize, todayIso, totalsFor, zeroTotals } from "./ledger";
 
 const MONTHS = 6;
@@ -109,6 +110,33 @@ export function useLedger() {
     [loggedIn, reload, localLedger, setLocalLedger],
   );
 
+  /** Import wielu wydatków (np. z wyciągu): ponowny import tych samych wierszy nie tworzy duplikatów. */
+  const importMany = useCallback(
+    async (list: ImportedExpense[]): Promise<{ created: number; skipped: number }> => {
+      if (loggedIn) {
+        let created = 0;
+        let skipped = 0;
+        for (let i = 0; i < list.length; i += 500) {
+          const r = await api<{ created: number; skipped: number }>("/expenses/import", { body: { items: list.slice(i, i + 500) } });
+          created += r.created;
+          skipped += r.skipped;
+        }
+        await reload();
+        return { created, skipped };
+      }
+      const have = new Set(localLedger.filter((e) => e.source_type === "IMPORT").map((e) => e.source_id));
+      const fresh: Expense[] = [];
+      for (const it of list) {
+        if (have.has(it.key)) continue;
+        have.add(it.key);
+        fresh.push({ id: crypto.randomUUID(), category: it.category, amount: it.amount, note: it.note, spent_on: it.spent_on, source_type: "IMPORT", source_id: it.key });
+      }
+      if (fresh.length) setLocalLedger([...fresh, ...localLedger]);
+      return { created: fresh.length, skipped: list.length - fresh.length };
+    },
+    [loggedIn, reload, localLedger, setLocalLedger],
+  );
+
   const period = periodOf();
   const periods = lastPeriods(MONTHS);
   const monthItems = loggedIn
@@ -119,5 +147,5 @@ export function useLedger() {
   const total = round2(Object.values(monthTotals).reduce((s, v) => s + v, 0));
 
   const allItems = loggedIn ? items : localLedger;
-  return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, remove, payLoan, reload, period };
+  return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, remove, payLoan, importMany, reload, period };
 }
