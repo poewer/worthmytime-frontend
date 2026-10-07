@@ -6,6 +6,8 @@ export type Category = "NEEDS" | "FUTURE" | "GOALS" | "FUN";
 
 /** Kredyt lub pożyczka w trakcie spłaty. Rata liczy się automatycznie do kategorii NEEDS. */
 export interface LoanIn {
+  /** identyfikator z serwera (po zapisie budżetu zmienia się) */
+  id?: string;
   name: string;
   installment_amount: number;
   /** Liczba rat do spłacenia; pomijana, gdy podano datę końca (wtedy liczy się sama). */
@@ -29,7 +31,25 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
+  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata); brak = wpis ręczny */
+  source_type?: "RECURRING" | "LOAN" | null;
+  source_id?: string | null;
 }
+
+/** Stały wydatek: wpis w rejestrze powstaje automatycznie w dniu płatności co miesiąc. */
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  category: Category;
+  amount: number;
+  day_of_month: number; // 1-31 (w krótszych miesiącach ostatni dzień)
+  active: boolean;
+  start_date: string; // YYYY-MM-DD
+  /** tylko lokalnie (bez konta): do kiedy wpisy zostały już dopisane */
+  generated_through?: string | null;
+}
+
+export type RecurringIn = Pick<RecurringExpense, "name" | "category" | "amount" | "day_of_month" | "active">;
 
 export interface MonthSummary {
   month: string; // YYYY-MM

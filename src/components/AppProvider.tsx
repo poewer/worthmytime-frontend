@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, getToken, setToken, type BudgetPlan, type BudgetState, type Expense, type Profile } from "@/lib/api";
+import { api, getToken, setToken, type BudgetPlan, type BudgetState, type Expense, type Profile, type RecurringExpense } from "@/lib/api";
 import { effectivePlan, readLocalLedger, writeLocalLedger } from "@/lib/ledger";
+import { materialize, readLocalRecurring, writeLocalRecurring } from "@/lib/recurring";
 
 const LOCAL_PROFILE_KEY = "wmt_profile";
 const LOCAL_BUDGET_KEY = "wmt_budget";
@@ -24,6 +25,9 @@ interface Ctx {
   /** Rejestr wydatków anonimowego użytkownika (zalogowany używa API). */
   localLedger: Expense[];
   setLocalLedger: (items: Expense[]) => void;
+  /** Szablony stałych wydatków anonimowego użytkownika (zalogowany używa API). */
+  localRecurring: RecurringExpense[];
+  setLocalRecurring: (items: RecurringExpense[]) => void;
   saveProfile: (p: Profile) => Promise<void>;
   login: (email: string, password: string, register?: boolean) => Promise<void>;
   logout: () => void;
@@ -88,6 +92,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const [profile, setProfile] = useState<Profile | null>(null);
   const [budget, setBudget] = useState<BudgetPlan | null>(null);
   const [localLedger, setLocalLedgerState] = useState<Expense[]>([]);
+  const [localRecurring, setLocalRecurringState] = useState<RecurringExpense[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -104,7 +109,12 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       }
       setProfile(readLocalProfile());
       setBudget(readLocalBudget());
-      setLocalLedgerState(readLocalLedger());
+      // stałe wydatki: brakujące wpisy do dziś dopisują się do lokalnego rejestru przy wejściu do aplikacji
+      const merged = materialize(readLocalRecurring(), readLocalLedger());
+      if (merged.created) writeLocalLedger(merged.ledger);
+      writeLocalRecurring(merged.templates);
+      setLocalLedgerState(merged.ledger);
+      setLocalRecurringState(merged.templates);
     })().finally(() => setReady(true));
   }, []);
 
@@ -163,6 +173,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     setLocalLedgerState(items);
   }, []);
 
+  const setLocalRecurring = useCallback((items: RecurringExpense[]) => {
+    writeLocalRecurring(items);
+    setLocalRecurringState(items);
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
     setEmail(null);
@@ -182,12 +197,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       budgetForRequest: email ? undefined : anonymousPlan(budget, localLedger),
       localLedger,
       setLocalLedger,
+      localRecurring,
+      setLocalRecurring,
       saveBudget,
       saveProfile,
       login,
       logout,
     }),
-    [ready, email, profile, budget, localLedger, setLocalLedger, saveProfile, saveBudget, login, logout],
+    [ready, email, profile, budget, localLedger, setLocalLedger, localRecurring, setLocalRecurring, saveProfile, saveBudget, login, logout],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
