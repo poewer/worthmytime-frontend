@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { json, PROFILE, RESULT, SAVED, withLocalLedger, withLocalProfile } from "./mocks";
+import { json, PROFILE, RESULT, SAVED, signedIn, withLocalLedger, withLocalProfile } from "./mocks";
 
 /** Zalogowany użytkownik: token w localStorage + /auth/me i pusty /budget. */
 async function asLoggedIn(page: Page) {
@@ -21,7 +21,7 @@ async function asLoggedIn(page: Page) {
       is_custom: false,
     }),
   );
-  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await signedIn(page);
 }
 
 test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i plan w żądaniu", async ({ page }) => {
@@ -54,6 +54,173 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   await page.goto("/expenses");
   await page.getByRole("button", { name: /Usuń wydatek kino/ }).click();
   await expect(page.getByText("Nic jeszcze nie dopisano.")).toBeVisible();
+});
+
+test("dzienny limit i prognoza: ile na dzień, pasek dzisiejszych wydatków i ostrzeżenie o tempie", async ({ page }) => {
+  // 10 października 2026: 22 dni do końca miesiąca (z dzisiejszym), dochód 7 000 zł, Przyjemności 700 zł
+  await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
+  await withLocalProfile(page);
+  await page.goto("/expenses");
+
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await expect(page.getByTestId("form-daily-limit")).toContainText(/Zostało\s700,00\szł na 22 dni/);
+
+  await page.getByLabel("Kwota").fill("400");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("expense-list")).toBeVisible();
+
+  // zostało 300 zł na 22 dni = 13,64 zł dziennie; tempo 40 zł dziennie wyczerpie budżet za 7 dni
+  const daily = page.getByTestId("daily-FUN");
+  await expect(daily).toContainText(/Zostało\s300,00\szł na 22 dni/);
+  await expect(page.getByTestId("daily-FUN-daily")).toContainText(/13,64\szł/);
+  await expect(page.getByTestId("daily-FUN-warning")).toContainText("skończysz za 7 dni");
+
+  // pasek w formularzu: dziś wydano 400 zł z dziennego limitu 13,64 zł
+  await expect(page.getByTestId("form-daily-limit")).toContainText(/Dziś w tej kategorii: 400,00\szł z 13,64\szł/);
+
+  // ta sama informacja na stronie Budżet
+  await page.goto("/budget");
+  await expect(page.getByTestId("daily-FUN")).toContainText(/Zostało\s300,00\szł na 22 dni/);
+});
+
+test("dzienny limit: bez prognozy w pierwszych dniach miesiąca i komunikat o wyczerpanym budżecie", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-02T10:00:00")); // 2. dnia tempo jest zbyt zaszumione
+  await withLocalProfile(page);
+  await page.goto("/expenses");
+  await page.getByRole("radio", { name: "Przyjemności" }).click();
+  await page.getByLabel("Kwota").fill("500");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("daily-FUN")).toContainText(/Zostało\s200,00\szł na 30 dni/);
+  await expect(page.getByTestId("daily-FUN-warning")).toHaveCount(0);
+
+  await page.getByLabel("Kwota").fill("300");
+  await page.getByRole("button", { name: "Dopisz wydatek" }).click();
+  await expect(page.getByTestId("daily-FUN")).toContainText("Budżet kategorii wyczerpany");
+  await expect(page.getByTestId("daily-FUN")).toHaveAttribute("data-status", "OVER");
+});
+
+test("stałe wydatki (bez konta): dopisują się do rejestru w dniu płatności i zmniejszają budżet", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
+  await withLocalProfile(page);
+  // szablon od sierpnia: wpisy za sierpień, wrzesień i październik (1. dnia miesiąca) powstają przy wejściu do aplikacji
+  await page.addInitScript(() => {
+    if (window.localStorage.getItem("wmt_recurring")) return; // nie nadpisuj stanu po odświeżeniu strony
+    window.localStorage.setItem(
+      "wmt_recurring",
+      JSON.stringify([{ id: "r1", name: "Czynsz", category: "NEEDS", amount: 2000, day_of_month: 1, active: true, start_date: "2026-08-01", generated_through: null }]),
+    );
+  });
+  await page.goto("/expenses");
+
+  const list = page.getByTestId("expense-list");
+  await expect(list).toContainText("Czynsz");
+  await expect(list.getByTestId("expense-source")).toHaveText("stały");
+  await expect(list.locator("li")).toHaveCount(1); // tylko październik jest w bieżącym miesiącu
+  // Potrzeby: 3 500 zł budżetu, 2 000 zł czynszu = 57%
+  await expect(page.getByTestId("usage-NEEDS")).toContainText("57%");
+
+  // odświeżenie nie dopisuje duplikatów
+  await page.reload();
+  await expect(page.getByTestId("expense-list").locator("li")).toHaveCount(1);
+
+  // nowy stały wydatek: pojawia się na liście szablonów z sumą miesięczną
+  const card = page.getByTestId("recurring-card");
+  await expect(card.getByTestId("recurring-total")).toContainText("2 000,00");
+  await card.getByLabel("Nazwa").fill("Siłownia");
+  await card.getByLabel("Opłata miesięczna").fill("150");
+  await card.getByLabel("Dzień miesiąca").fill("31");
+  await card.getByRole("button", { name: "Dodaj stały wydatek" }).click();
+  await expect(card.getByTestId("recurring-Siłownia")).toContainText("ostatniego dnia miesiąca");
+  await expect(card.getByTestId("recurring-total")).toContainText("2 150,00");
+
+  // wyłączenie i usunięcie
+  await card.getByRole("button", { name: "Wyłącz stały wydatek Siłownia" }).click();
+  await expect(card.getByTestId("recurring-total")).toContainText("2 000,00");
+  await card.getByRole("button", { name: "Usuń stały wydatek Siłownia" }).click();
+  await expect(card.getByTestId("recurring-Siłownia")).toHaveCount(0);
+});
+
+test("raty: oznaczenie jako zapłacona zapisuje wpis i nie liczy raty drugi raz", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
+  await withLocalProfile(page);
+  await page.addInitScript(() =>
+    window.localStorage.setItem(
+      "wmt_budget",
+      JSON.stringify({
+        percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+        spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+        loans: [{ name: "Kredyt auto", installment_amount: 800, installments_left: 24, payment_day: 12 }],
+      }),
+    ),
+  );
+  await page.goto("/expenses");
+  // Potrzeby: 3 500 zł budżetu, rata 800 zł = 23%
+  await expect(page.getByTestId("usage-NEEDS")).toContainText("23%");
+
+  await page.getByRole("button", { name: "Oznacz ratę Kredyt auto jako zapłaconą" }).click();
+  await expect(page.getByTestId("paid-0")).toContainText("Opłacona");
+  await expect(page.getByRole("button", { name: /jako zapłaconą/ })).toHaveCount(0);
+
+  const list = page.getByTestId("expense-list");
+  await expect(list).toContainText("Rata: Kredyt auto");
+  await expect(list.getByTestId("expense-source")).toHaveText("rata");
+  // rata jest już zobowiązaniem w Potrzebach, więc wpis nie podnosi wykorzystania budżetu
+  await expect(page.getByTestId("usage-NEEDS")).toContainText("23%");
+});
+
+test("stałe wydatki i raty (konto): wywołania API i oznaczenie raty identyfikatorem z serwera", async ({ page }) => {
+  await asLoggedIn(page);
+  let templates = [{ id: "t1", name: "Czynsz", category: "NEEDS", amount: 2000, day_of_month: 5, active: true, start_date: "2026-01-01" }];
+  const bodies: Record<string, unknown>[] = [];
+  await page.route("**/api/v1/recurring-expenses**", async (r) => {
+    const req = r.request();
+    if (req.method() === "POST") {
+      const b = req.postDataJSON();
+      bodies.push(b);
+      templates = [...templates, { id: "t2", ...b }];
+      return json(r, templates[1], 201);
+    }
+    if (req.method() === "DELETE") {
+      templates = templates.filter((t) => !req.url().endsWith(t.id));
+      return json(r, { deleted: true });
+    }
+    return json(r, { items: templates, monthly_total: templates.reduce((s, t) => s + t.amount, 0) });
+  });
+  await page.route("**/api/v1/expenses**", (r) =>
+    json(r, r.request().url().includes("summary") ? { months: [] } : { month: "2026-10", items: [], totals: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 }, total: 0, loan_payments: 0 }),
+  );
+  let paid: unknown;
+  await page.route("**/api/v1/budget/loans/l1/pay", (r) => {
+    paid = r.request().postDataJSON();
+    return json(r, { id: "e1", category: "NEEDS", amount: 800, note: "Rata: Kredyt auto", spent_on: "2026-10-12", source_type: "LOAN", source_id: "l1" }, 201);
+  });
+  await page.route("**/api/v1/budget", (r) =>
+    json(r, {
+      percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+      spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+      loans: [{ id: "l1", name: "Kredyt auto", installment_amount: 800, installments_left: 24, payment_day: 12 }],
+      monthly_loans: 800,
+      amounts: { NEEDS: 3500, FUTURE: 1750, GOALS: 1050, FUN: 700 },
+      available: { NEEDS: 2700, FUTURE: 1750, GOALS: 1050, FUN: 700 },
+      monthly_income: 7000,
+      total_spent: 800,
+      is_custom: true,
+    }),
+  );
+  await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
+  await page.goto("/expenses");
+
+  const card = page.getByTestId("recurring-card");
+  await expect(card.getByTestId("recurring-Czynsz")).toContainText("co miesiąc 5.");
+  await card.getByLabel("Nazwa").fill("Internet");
+  await card.getByLabel("Opłata miesięczna").fill("60");
+  await card.getByLabel("Dzień miesiąca").fill("15");
+  await card.getByRole("button", { name: "Dodaj stały wydatek" }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0]).toMatchObject({ name: "Internet", amount: 60, day_of_month: 15, category: "NEEDS", active: true });
+
+  await page.getByRole("button", { name: "Oznacz ratę Kredyt auto jako zapłaconą" }).click();
+  await expect.poll(() => paid).toEqual({ paid_on: "2026-10-12" });
 });
 
 test("lista życzeń: ostygnięcie, odpuszczenie i statystyka oszczędności", async ({ page }) => {

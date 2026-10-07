@@ -6,6 +6,8 @@ export type Category = "NEEDS" | "FUTURE" | "GOALS" | "FUN";
 
 /** Kredyt lub pożyczka w trakcie spłaty. Rata liczy się automatycznie do kategorii NEEDS. */
 export interface LoanIn {
+  /** identyfikator z serwera (po zapisie budżetu zmienia się) */
+  id?: string;
   name: string;
   installment_amount: number;
   /** Liczba rat do spłacenia; pomijana, gdy podano datę końca (wtedy liczy się sama). */
@@ -29,7 +31,25 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
+  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata); brak = wpis ręczny */
+  source_type?: "RECURRING" | "LOAN" | null;
+  source_id?: string | null;
 }
+
+/** Stały wydatek: wpis w rejestrze powstaje automatycznie w dniu płatności co miesiąc. */
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  category: Category;
+  amount: number;
+  day_of_month: number; // 1-31 (w krótszych miesiącach ostatni dzień)
+  active: boolean;
+  start_date: string; // YYYY-MM-DD
+  /** tylko lokalnie (bez konta): do kiedy wpisy zostały już dopisane */
+  generated_through?: string | null;
+}
+
+export type RecurringIn = Pick<RecurringExpense, "name" | "category" | "amount" | "day_of_month" | "active">;
 
 export interface MonthSummary {
   month: string; // YYYY-MM
@@ -266,22 +286,40 @@ export class ApiError extends Error {
   }
 }
 
-const TOKEN_KEY = "wmt_token";
+// Sesja siedzi w cookie `wmt_session` (HttpOnly, niedostępne dla skryptów). Cookie `wmt_csrf` jest odczytywalne:
+// służy jako znacznik "jest sesja" i jako token CSRF odsyłany w nagłówku przy żądaniach zmieniających dane.
+const CSRF_COOKIE = "wmt_csrf";
+const CSRF_HEADER = "X-CSRF-Token";
+const LEGACY_TOKEN_KEY = "wmt_token"; // dawniej token trzymaliśmy w localStorage
 
-export const getToken = () =>
-  typeof window === "undefined" ? null : window.localStorage.getItem(TOKEN_KEY);
-export const setToken = (t: string | null) => {
-  if (t) window.localStorage.setItem(TOKEN_KEY, t);
-  else window.localStorage.removeItem(TOKEN_KEY);
+export const csrfToken = (): string | null => {
+  if (typeof document === "undefined") return null;
+  const hit = document.cookie.split("; ").find((c) => c.startsWith(`${CSRF_COOKIE}=`));
+  return hit ? decodeURIComponent(hit.slice(CSRF_COOKIE.length + 1)) : null;
+};
+export const hasSession = () => csrfToken() != null;
+
+/** Token z localStorage z poprzedniej wersji (do jednorazowej wymiany na cookie). */
+export const legacyToken = () => (typeof window === "undefined" ? null : window.localStorage.getItem(LEGACY_TOKEN_KEY));
+export const clearLegacyToken = () => {
+  try {
+    window.localStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {}
 };
 
-export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const token = getToken();
+export async function api<T>(
+  path: string,
+  init: { method?: string; body?: unknown; /** token Bearer tylko do wymiany na cookie */ bearer?: string } = {},
+): Promise<T> {
+  const method = init.method ?? (init.body !== undefined ? "POST" : "GET");
+  const csrf = method === "GET" ? null : csrfToken();
   const res = await fetch(`${API_URL}${path}`, {
-    method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
+    method,
+    credentials: "include",
     headers: {
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.bearer ? { Authorization: `Bearer ${init.bearer}` } : {}),
+      ...(csrf ? { [CSRF_HEADER]: csrf } : {}),
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     cache: "no-store",

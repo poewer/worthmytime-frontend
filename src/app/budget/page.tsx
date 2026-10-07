@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
+import DailyLimit from "@/components/DailyLimit";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import { Button } from "@/components/ui/button";
@@ -144,6 +145,7 @@ function BudgetForm({
                   {loansHere > 0 ? " + raty" : ""}): <b className="text-foreground tabular-nums">{money(spent(c) + loansHere, currency)}</b> · dostępne:{" "}
                   <b className={available < 0 ? "text-destructive tabular-nums" : "text-foreground tabular-nums"}>{money(available, currency)}</b>
                 </p>
+                <DailyLimit budget={amount} variableSpent={spent(c)} fixed={loansHere} currency={currency} testId={`daily-${c}`} />
               </CardContent>
             </Card>
           );
