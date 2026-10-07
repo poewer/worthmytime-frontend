@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { BUDGET_EXCEEDED, BUDGET_PLAN, json, PROFILE, RESULT, SAVED, withLocalBudget, withLocalLedger, withLocalProfile } from "./mocks";
+import { BUDGET_EXCEEDED, BUDGET_PLAN, json, PROFILE, RESULT, SAVED, signedIn, withLocalBudget, withLocalLedger, withLocalProfile } from "./mocks";
 
 test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   await page.route("**/api/v1/calculate", (r) => json(r, RESULT));
@@ -116,7 +116,10 @@ test("koszt cykliczny: nagłówek to 1 miesiąc nawet gdy API zwróci sumę z 10
 
 test("rejestracja, zapis w historii i publiczny link", async ({ page }) => {
   let saved = { ...SAVED };
-  await page.route("**/api/v1/auth/register", (r) => json(r, { token: "t", profile: PROFILE }, 201));
+  await page.route("**/api/v1/auth/register", async (r) => {
+    await signedIn(page); // serwer ustawia cookie sesji
+    return json(r, { token: "t", profile: PROFILE }, 201);
+  });
   await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
   await page.route("**/api/v1/calculate", (r) => json(r, RESULT));
   await page.route("**/api/v1/calculations", (r) => json(r, saved, 201));
@@ -144,12 +147,70 @@ test("rejestracja, zapis w historii i publiczny link", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Wyłącz udostępnianie/ })).toBeVisible();
 });
 
+test("sesja w cookie: token z odpowiedzi nie trafia do localStorage", async ({ page }) => {
+  await page.route("**/api/v1/auth/register", async (r) => {
+    // serwer ustawia cookie sesji; przeglądarka (poza skryptami) widzi tylko znacznik wmt_csrf
+    await page.context().addCookies([{ name: "wmt_csrf", value: "csrf-z-serwera", domain: "localhost", path: "/" }]);
+    return json(r, { token: "nie-zapisuj-mnie", profile: PROFILE }, 201);
+  });
+  await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
+  await withLocalProfile(page);
+
+  await page.goto("/profile");
+  await page.getByRole("button", { name: /Nie mam konta/ }).click();
+  await page.getByLabel("E-mail").fill("a@b.pl");
+  await page.getByLabel("Hasło").fill("supersecret1");
+  await page.getByRole("button", { name: "Zarejestruj" }).click();
+  await expect(page.getByText("Zalogowano jako")).toBeVisible();
+
+  expect(await page.evaluate(() => JSON.stringify(window.localStorage))).not.toContain("nie-zapisuj-mnie");
+  expect(await page.evaluate(() => window.localStorage.getItem("wmt_token"))).toBeNull();
+
+  // po odświeżeniu sesja trwa dzięki cookie (bez tokenu w localStorage)
+  await page.reload();
+  await expect(page.getByText("Zalogowano jako")).toBeVisible();
+});
+
+test("sesja w cookie: wylogowanie wywołuje POST /auth/logout z tokenem CSRF", async ({ page }) => {
+  await signedIn(page);
+  await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
+  await page.route("**/api/v1/budget", (r) => json(r, { ...BUDGET_PLAN, is_custom: false, amounts: null, available: null, monthly_income: null, total_spent: 0 }));
+  let logout: { method: string; csrf?: string } | undefined;
+  await page.route("**/api/v1/auth/logout", (r) => {
+    logout = { method: r.request().method(), csrf: r.request().headers()["x-csrf-token"] };
+    return json(r, { logged_out: true });
+  });
+  await page.goto("/profile");
+  await page.getByRole("button", { name: "Wyloguj" }).first().click();
+  await expect.poll(() => logout).toEqual({ method: "POST", csrf: "csrf-test" });
+});
+
+test("migracja: token z localStorage zostaje wymieniony na cookie i usunięty z przeglądarki", async ({ page }) => {
+  let bearer: string | undefined;
+  await page.route("**/api/v1/auth/session", (r) => {
+    bearer = r.request().headers()["authorization"];
+    return json(r, { profile: PROFILE });
+  });
+  await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
+  await page.route("**/api/v1/budget", (r) => json(r, { ...BUDGET_PLAN, is_custom: false, amounts: null, available: null, monthly_income: null, total_spent: 0 }));
+  await page.addInitScript(() => {
+    if (!window.sessionStorage.getItem("seeded")) {
+      window.sessionStorage.setItem("seeded", "1");
+      window.localStorage.setItem("wmt_token", "stary-token");
+    }
+  });
+  await page.goto("/profile");
+  await expect(page.getByRole("button", { name: "Wyloguj" }).first()).toBeVisible();
+  expect(bearer).toBe("Bearer stary-token");
+  expect(await page.evaluate(() => window.localStorage.getItem("wmt_token"))).toBeNull();
+});
+
 test("historia: filtrowanie i stan pusty", async ({ page }) => {
   await page.route("**/api/v1/auth/me", (r) => json(r, { id: "u1", email: "a@b.pl", profile: PROFILE }));
   await page.route("**/api/v1/calculations", (r) =>
     json(r, { items: [SAVED, { ...SAVED, id: "c2", name: "Rower", type: "TCO" }] }),
   );
-  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await signedIn(page);
   await page.goto("/history");
   await expect(page.getByText("iPhone 17 Pro")).toBeVisible();
   await page.getByLabel("Szukaj po nazwie").fill("rower");
@@ -312,7 +373,7 @@ test("historia: znacznik poza budżetem", async ({ page }) => {
   await page.route("**/api/v1/calculations", (r) =>
     json(r, { items: [{ ...SAVED, result: { ...RESULT, budget: BUDGET_EXCEEDED } }] }),
   );
-  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await signedIn(page);
   await page.goto("/history");
   await expect(page.getByTestId("history-over-budget")).toHaveText("poza budżetem");
   await expect(page.getByTestId("history-category")).toHaveText("Przyjemności");

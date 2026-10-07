@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { json, PROFILE, withLocalLedger, withLocalProfile } from "./mocks";
+import { json, PROFILE, signedIn, withLocalLedger, withLocalProfile } from "./mocks";
 
 // dochód 7 000 zł: Przyjemności 700 zł (10%)
 
@@ -84,9 +84,7 @@ test("dzwonek (konto): lista z API, ukrycie wywołuje POST z zakodowanym kluczem
       is_custom: false,
     }),
   );
-  // zalogowany: cookie sesji (znacznik wmt_csrf); token w localStorage obsługuje starszą wersję logowania
-  await page.context().addCookies([{ name: "wmt_csrf", value: "csrf-test", domain: "localhost", path: "/" }]);
-  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await signedIn(page); // cookie sesji (znacznik wmt_csrf)
 
   let items = [
     { key: "GOAL_OVERDUE:g1", code: "GOAL_OVERDUE", level: "critical", state: "2026-09-01", link: "/goals", params: { name: "Wakacje", target_date: "2026-09-01", remaining: 1200 } },

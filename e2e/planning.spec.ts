@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { json, PROFILE, RESULT, SAVED, withLocalLedger, withLocalProfile } from "./mocks";
+import { json, PROFILE, RESULT, SAVED, signedIn, withLocalLedger, withLocalProfile } from "./mocks";
 
 /** Zalogowany użytkownik: token w localStorage + /auth/me i pusty /budget. */
 async function asLoggedIn(page: Page) {
@@ -21,7 +21,7 @@ async function asLoggedIn(page: Page) {
       is_custom: false,
     }),
   );
-  await page.addInitScript(() => window.localStorage.setItem("wmt_token", "t"));
+  await signedIn(page);
 }
 
 test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i plan w żądaniu", async ({ page }) => {
