@@ -61,3 +61,15 @@ Testy e2e budują wersję produkcyjną i startują ją na porcie 3100 (`E2E_PORT
 ## Sesja
 
 Po zalogowaniu przeglądarka nie trzyma tokenu w `localStorage`: serwer ustawia cookie `wmt_session` (HttpOnly), a frontend widzi tylko znacznik `wmt_csrf`, który odsyła w nagłówku `X-CSRF-Token` przy żądaniach zmieniających dane. Żądania do API idą z `credentials: "include"`, więc w backendzie `CORS_ORIGINS` musi wskazywać konkretną domenę frontendu (np. `http://localhost:3000`), a nie `*`. Zalogowani ze starej wersji są migrowani automatycznie: token z `localStorage` jest jednorazowo wymieniany na cookie (`POST /auth/session`) i usuwany.
+
+## Obrazy Docker (GHCR)
+
+Obraz buduje workflow `Publish Docker image to GHCR` (po zielonych testach), bez wdrożenia na serwer:
+
+| Gałąź | Środowisko | Tag obrazu |
+|---|---|---|
+| `main` | produkcja | `<SHA commita>` |
+| `stage` | testy przed produkcją | `stage-<SHA commita>` |
+
+Tagi są zawsze po SHA (nigdy `latest`), więc wiadomo dokładnie, jaki kod działa.
+Dla `stage` adres API do obrazu pochodzi ze zmiennej repozytorium `STAGE_NEXT_PUBLIC_API_URL` (produkcja: `NEXT_PUBLIC_API_URL`), więc obraz testowy nie sięga po produkcyjne API. Ustaw ją w *Settings > Secrets and variables > Actions > Variables*.
