@@ -12,6 +12,7 @@ import DailyLimit from "@/components/DailyLimit";
 import ImportButton from "@/components/ImportButton";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
+import PlannedRecurringList from "@/components/PlannedRecurringList";
 import RecurringCard from "@/components/RecurringCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { todayIso } from "@/lib/ledger";
 import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
+import { plannedFor } from "@/lib/recurring";
 import { loanKey, useLedger } from "@/lib/use-ledger";
 import { useRecurring } from "@/lib/use-recurring";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,9 @@ const entriesLabel = (n: number) =>
   n === 1 ? "1 wpis" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} wpisy` : `${n} wpisów`;
 
 const installmentsLabel = (n: number) => (n === 1 ? "1 rata" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} raty` : `${n} rat`);
+
+const plannedLabel = (n: number) =>
+  n === 1 ? "1 zaplanowany" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} zaplanowane` : `${n} zaplanowanych`;
 
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleDateString("pl-PL", { month: "short", year: "2-digit" });
 
@@ -244,6 +249,7 @@ export default function ExpensesPage() {
                 {rows.map((r) => {
                   const entries = ledger.items.filter((e) => e.category === r.c);
                   const loanRows = r.c === "NEEDS" ? dueLoans : [];
+                  const planned = plannedFor(recurring.items, ledger.items, r.c); // stałe wydatki czekające na termin w tym miesiącu
                   const isOpen = !!open[r.c];
                   return (
                     <div key={r.c} className="grid min-w-0 gap-1.5" data-testid={`usage-${r.c}`}>
@@ -259,7 +265,8 @@ export default function ExpensesPage() {
                           {CATEGORY_INFO[r.c].label}
                           <span className="text-xs font-normal text-muted-foreground">
                             ({entriesLabel(entries.length)}
-                            {loanRows.length > 0 ? `, ${installmentsLabel(loanRows.length)} do zapłaty)` : ")"}
+                            {loanRows.length > 0 && `, ${installmentsLabel(loanRows.length)} do zapłaty`}
+                            {planned.length > 0 && `, ${plannedLabel(planned.length)}`})
                           </span>
                         </span>
                         <span className={cn("shrink-0 tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
@@ -316,7 +323,8 @@ export default function ExpensesPage() {
                               ))}
                             </ul>
                           )}
-                          {entries.length === 0 && loanRows.length === 0 ? (
+                          <PlannedRecurringList planned={planned} category={r.c} currency={currency} />
+                          {entries.length === 0 && loanRows.length === 0 && planned.length === 0 ? (
                             <p className="py-1 text-sm text-muted-foreground">Brak wpisów w tej kategorii.</p>
                           ) : entries.length === 0 ? null : (
                             <ul className="divide-y" data-testid={`expense-list-${r.c}`}>
