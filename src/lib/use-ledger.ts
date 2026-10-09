@@ -77,6 +77,23 @@ export function useLedger() {
     [loggedIn, reload, localLedger, setLocalLedger],
   );
 
+  /** Edycja wpisu (kategoria, kwota, notatka, data); źródło wpisu (stały wydatek, import) zostaje. */
+  const update = useCallback(
+    async (id: string, e: NewExpense) => {
+      if (loggedIn) {
+        await api(`/expenses/${id}`, { method: "PUT", body: e });
+        await reload();
+      } else {
+        setLocalLedger(
+          localLedger.map((x) =>
+            x.id === id ? { ...x, category: e.category, amount: e.amount, note: e.note || null, spent_on: e.spent_on || x.spent_on } : x,
+          ),
+        );
+      }
+    },
+    [loggedIn, reload, localLedger, setLocalLedger],
+  );
+
   const remove = useCallback(
     async (id: string) => {
       if (loggedIn) {
@@ -148,5 +165,5 @@ export function useLedger() {
   const total = round2(Object.values(monthTotals).reduce((s, v) => s + v, 0));
 
   const allItems = loggedIn ? items : localLedger;
-  return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, remove, payLoan, importMany, reload, period };
+  return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, update, remove, payLoan, importMany, reload, period };
 }
