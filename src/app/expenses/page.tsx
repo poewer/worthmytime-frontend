@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, ChevronRightIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
+import ExpenseEditForm from "@/components/ExpenseEditForm";
 import ImportButton from "@/components/ImportButton";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
@@ -59,6 +60,7 @@ export default function ExpensesPage() {
   const [category, setCategory] = useState<Category>("FUN");
   // które kategorie w podsumowaniu miesiąca są rozwinięte (pokazują swoje wpisy)
   const [open, setOpen] = useState<Partial<Record<Category, boolean>>>({});
+  const [editing, setEditing] = useState<string | null>(null); // id wpisu, który jest teraz edytowany
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
     defaultValues: { amount: "", note: "", spent_on: todayIso() },
@@ -322,6 +324,18 @@ export default function ExpensesPage() {
                             <ul className="divide-y" data-testid={`expense-list-${r.c}`}>
                               {entries.map((e) => (
                                 <li key={e.id} className="flex items-center gap-2 py-1.5">
+                                  {editing === e.id ? (
+                                    <ExpenseEditForm
+                                      entry={e}
+                                      onCancel={() => setEditing(null)}
+                                      onSave={async (v) => {
+                                        await ledger.update(e.id, v);
+                                        setEditing(null);
+                                        toast.success("Wydatek zapisany");
+                                      }}
+                                    />
+                                  ) : (
+                                  <>
                                   <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-medium">
                                       {e.note || CATEGORY_INFO[e.category].label}
@@ -334,6 +348,17 @@ export default function ExpensesPage() {
                                     <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
                                   </div>
                                   <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
+                                  {/* wpis raty jest powiązany z zobowiązaniem: zmienia się go przez "Zapłacona", nie edycją */}
+                                  {e.source_type !== "LOAN" && (
+                                    <Button
+                                      variant="ghost"
+                                      className="size-9"
+                                      aria-label={`Edytuj wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
+                                      onClick={() => setEditing(e.id)}
+                                    >
+                                      <PencilIcon />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     className="size-9"
@@ -342,6 +367,8 @@ export default function ExpensesPage() {
                                   >
                                     <Trash2Icon />
                                   </Button>
+                                  </>
+                                  )}
                                 </li>
                               ))}
                             </ul>
